@@ -5,8 +5,8 @@ from app import config
 ENDPOINTS = [
     ("get", "/health", None),
     ("post", "/sync", {"device_id": "a", "cursor": 0, "changes": []}),
-    ("post", "/photos", None),
-    ("get", "/photos/" + "0" * 32, None),
+    ("put", "/photos/3f2a9c1e-7b4d-4e8a-9f10-2c3d4e5f6a7b", None),
+    ("get", "/photos/3f2a9c1e-7b4d-4e8a-9f10-2c3d4e5f6a7b", None),
 ]
 
 

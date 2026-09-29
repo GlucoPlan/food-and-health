@@ -5,7 +5,6 @@
 
 import hmac
 import re
-import uuid
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -18,7 +17,8 @@ from .db import TABLES, Store
 PAGE_SIZE = 1000
 MAX_CHANGES = 5000
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
-PHOTO_ID = re.compile(r"^[0-9a-f]{32}$")
+# id фото задаёт телефон — это UUID из имени файла (одинаковое на всех телефонах)
+PHOTO_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 
 class Change(BaseModel):
@@ -60,8 +60,11 @@ def create_app(settings: config.Settings | None = None) -> FastAPI:
         changes, cursor, has_more = store.changes_since(request.cursor, request.device_id, PAGE_SIZE, applied)
         return {"cursor": cursor, "has_more": has_more, "changes": changes}
 
-    @app.post("/photos")
-    async def upload_photo(request: Request) -> dict:
+    @app.put("/photos/{photo_id}")
+    async def put_photo(photo_id: str, request: Request) -> dict:
+        """Загрузить фото под id телефона. Повторная загрузка безопасна: фото неизменяемы."""
+        if not PHOTO_ID.match(photo_id):
+            raise HTTPException(status_code=422, detail="id фото — UUID")
         # Читаем по частям и обрываем на лимите: памяти на сервере мало (ТЗ 9)
         body = bytearray()
         async for chunk in request.stream():
@@ -70,8 +73,11 @@ def create_app(settings: config.Settings | None = None) -> FastAPI:
                 raise HTTPException(status_code=413, detail="Фото больше 5 МБ")
         if not bytes(body[:3]) == b"\xff\xd8\xff":
             raise HTTPException(status_code=415, detail="Нужен JPEG")
-        photo_id = uuid.uuid4().hex
-        (settings.photos_dir / f"{photo_id}.jpg").write_bytes(body)
+        path = settings.photos_dir / f"{photo_id}.jpg"
+        if not path.exists():
+            tmp = path.with_suffix(".part")
+            tmp.write_bytes(body)
+            tmp.replace(path)
         return {"id": photo_id}
 
     @app.get("/photos/{photo_id}")
