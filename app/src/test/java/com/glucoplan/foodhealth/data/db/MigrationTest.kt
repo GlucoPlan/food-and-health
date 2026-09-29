@@ -213,7 +213,7 @@ class MigrationTest {
                 "INSERT INTO profile (id, name, sd1_enabled, show_xe, carbs_per_xe, updated_at, deleted, device_id) " +
                     "VALUES ('p1', 'Иван', 0, 1, 12.0, 100, 0, 'dev')"
             )
-            db.execSQL("UPDATE sync_state SET cursor = 51, initialized = 1 WHERE id = 1")
+            db.execSQL("INSERT OR REPLACE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 51, 1)")
         }
 
         val db = Room.databaseBuilder(context, AppDatabase::class.java, name)

@@ -2,7 +2,6 @@ package com.glucoplan.foodhealth.data.db
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.glucoplan.foodhealth.data.sync.SyncTables
 
 /** 1 → 2: продукты. */
 val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -171,7 +170,9 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
                 "`json` TEXT NOT NULL, PRIMARY KEY(`tbl`, `id`))"
         )
         db.execSQL("INSERT OR IGNORE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 0, 0)")
-        SyncTables.ALL.forEach { table ->
+        // Список таблиц — как был в версии 5. Не SyncTables.ALL: он растёт с новыми версиями,
+        // а таблиц из будущих версий в этот момент ещё нет
+        listOf("profile", "product", "pan", "dish", "dish_version", "dish_ingredient", "meal", "meal_item").forEach { table ->
             db.execSQL("INSERT OR REPLACE INTO sync_outbox (tbl, id, version) SELECT '$table', id, 1 FROM `$table`")
         }
     }
