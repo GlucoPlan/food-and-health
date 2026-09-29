@@ -11,7 +11,21 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.glucoplan.foodhealth.data.NumberText
+import com.glucoplan.foodhealth.data.profile.HeightRecord
+import com.glucoplan.foodhealth.data.profile.ProfileValidator
+import com.glucoplan.foodhealth.ui.profile.DateField
+import com.glucoplan.foodhealth.ui.profile.SexChips
+import com.glucoplan.foodhealth.ui.profile.formatDate
+import java.time.LocalDate
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun ProfileEditScreen(onDone: () -> Unit, viewModel: ProfileEditViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val heightHistory by viewModel.heightHistory.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.saved) { if (state.saved) onDone() }
 
@@ -74,6 +89,21 @@ fun ProfileEditScreen(onDone: () -> Unit, viewModel: ProfileEditViewModel = hilt
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
             )
+            SexChips(form.sex, state.sexError, viewModel::onSexChange)
+            DateField(
+                label = "Дата рождения",
+                date = form.birthDate,
+                error = state.birthDateError,
+                onPick = viewModel::onBirthDateChange,
+                extra = form.birthDate?.let { java.time.Period.between(it, LocalDate.now()).years }
+                    ?.let(ProfileValidator::ageText),
+            )
+            HeightSection(
+                isNew = state.isNew,
+                history = heightHistory,
+                onAdd = viewModel::addHeight,
+                onDelete = viewModel::deleteHeight,
+            )
             SwitchRow(
                 title = "Дневник СД1",
                 subtitle = "Сахар, доза и крупные углеводы при записи еды",
@@ -98,10 +128,104 @@ fun ProfileEditScreen(onDone: () -> Unit, viewModel: ProfileEditViewModel = hilt
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            SwitchRow(
+                title = "Считать воду",
+                subtitle = "Дневная норма = норма на 1 кг × последний вес",
+                checked = form.waterEnabled,
+                onChange = viewModel::onWaterEnabledChange,
+            )
+            if (form.waterEnabled) {
+                OutlinedTextField(
+                    value = form.waterMlPerKg,
+                    onValueChange = viewModel::onWaterNormChange,
+                    label = { Text("Норма, мл на 1 кг веса") },
+                    singleLine = true,
+                    isError = state.waterError != null,
+                    supportingText = state.waterError?.let { msg -> @Composable { Text(msg) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) {
                 Text("Сохранить")
             }
         }
+    }
+}
+
+/** Рост (ТЗ 15.3): текущий, «Записать рост», история с удалением ошибочных записей. */
+@Composable
+private fun HeightSection(
+    isNew: Boolean,
+    history: List<HeightRecord>,
+    onAdd: (String, LocalDate, (String?) -> Unit) -> Unit,
+    onDelete: (String) -> Unit,
+) {
+    var adding by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Рост", style = MaterialTheme.typography.bodyLarge)
+        if (isNew) {
+            Text(
+                "Рост можно записать после сохранения профиля",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Column
+        }
+        val current = history.firstOrNull()
+        Text(
+            current?.let { "${NumberText.format(it.heightCm, 1)} см, с ${formatDate(it.date)}" } ?: "Не записан",
+            color = if (current == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        )
+        OutlinedButton(onClick = { adding = true }) { Text("Записать рост") }
+        if (history.size > 1 || current != null) {
+            Text(
+                "История роста",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            history.forEach { record ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${formatDate(record.date)} — ${NumberText.format(record.heightCm, 1)} см",
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { onDelete(record.id) }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Удалить запись роста")
+                    }
+                }
+            }
+        }
+    }
+
+    if (adding) {
+        var text by remember { mutableStateOf("") }
+        var date by remember { mutableStateOf(LocalDate.now()) }
+        var error by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { adding = false },
+            title = { Text("Рост") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it; error = null },
+                        label = { Text("Рост, см") },
+                        singleLine = true,
+                        isError = error != null,
+                        supportingText = error?.let { msg -> @Composable { Text(msg) } },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    )
+                    DateField(label = "Дата", date = date, error = null, onPick = { date = it })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onAdd(text, date) { e -> if (e == null) adding = false else error = e }
+                }) { Text("Записать") }
+            },
+            dismissButton = { TextButton(onClick = { adding = false }) { Text("Отмена") } },
+        )
     }
 }
 

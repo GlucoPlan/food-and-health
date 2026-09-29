@@ -300,7 +300,12 @@ private fun ProfilesCard(profiles: List<Profile>, onOpenProfile: (String?) -> Un
             profiles.forEach { profile ->
                 ListItem(
                     headlineContent = { Text(profile.name) },
-                    supportingContent = profileSummary(profile)?.let { msg -> @Composable { Text(msg) } },
+                    supportingContent = if (profile.incomplete) {
+                        // ТЗ 15.3: пол и дата рождения обязательны — старые профили нужно дополнить
+                        @Composable { Text("Не указаны пол и дата рождения", color = MaterialTheme.colorScheme.error) }
+                    } else {
+                        profileSummary(profile)?.let { msg -> @Composable { Text(msg) } }
+                    },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     modifier = Modifier.clickable { onOpenProfile(profile.id) },
                 )
@@ -316,7 +321,9 @@ private fun ProfilesCard(profiles: List<Profile>, onOpenProfile: (String?) -> Un
 }
 
 private fun profileSummary(profile: Profile): String? = listOfNotNull(
+    profile.ageYears()?.let(ProfileValidator::ageText),
     "Дневник СД1".takeIf { profile.sd1Enabled },
+    "Вода".takeIf { profile.waterEnabled },
     "ХЕ по ${ProfileValidator.formatCarbs(profile.carbsPerXe)} г".takeIf { profile.showXe },
 ).joinToString(" · ").ifEmpty { null }
 

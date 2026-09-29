@@ -1,5 +1,6 @@
 package com.glucoplan.foodhealth.data.meal
 
+import com.glucoplan.foodhealth.data.profile.filledProfileForm
 import android.app.Application
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
@@ -177,7 +178,7 @@ class MealEditTest {
 
     @Test
     fun `дневник СД1 — правка сахара и дозы, они видны в истории и в открытом приёме`() = runTest {
-        profiles.save(null, ProfileForm("Дочь", sd1Enabled = true))
+        profiles.save(null, filledProfileForm("Дочь", sd1Enabled = true))
         val daughter = profiles.observeProfiles().first().single().id
         val id = (repo.record(daughter, MealDraft(items = listOf(DraftItem("a", MealItemType.PRODUCT, milk, "100")),
             glucose = "7,1"), now) as MealRecordResult.Recorded).mealId
@@ -195,13 +196,13 @@ class MealEditTest {
 
     @Test
     fun `правка приёма профиля без дневника не стирает прежние сахар и дозу`() = runTest {
-        profiles.save(null, ProfileForm("Дочь", sd1Enabled = true))
+        profiles.save(null, filledProfileForm("Дочь", sd1Enabled = true))
         val daughter = profiles.observeProfiles().first().single()
         val id = (repo.record(daughter.id, MealDraft(items = listOf(DraftItem("a", MealItemType.PRODUCT, milk, "100")),
             glucose = "7,1", dose = "2"), now) as MealRecordResult.Recorded).mealId
 
         // Дневник выключили — поля скрыты, правка их не трогает
-        profiles.save(daughter.id, ProfileForm("Дочь", sd1Enabled = false))
+        profiles.save(daughter.id, filledProfileForm("Дочь", sd1Enabled = false))
         val draft = repo.loadForEdit(id)!!
         repo.update(id, daughter.id, draft.copy(glucose = "", dose = ""), now)
         val meal = db.mealDao().getMeal(id)!!

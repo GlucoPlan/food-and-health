@@ -1,5 +1,6 @@
 package com.glucoplan.foodhealth.data.meal
 
+import com.glucoplan.foodhealth.data.profile.filledProfileForm
 import android.app.Application
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
@@ -139,7 +140,7 @@ class MealRepositoryTest {
     }
 
     private suspend fun profile(name: String, sd1: Boolean): String {
-        profiles.save(null, ProfileForm(name, sd1Enabled = sd1))
+        profiles.save(null, filledProfileForm(name, sd1Enabled = sd1))
         return profiles.observeProfiles().first().single { it.name == name }.id
     }
 

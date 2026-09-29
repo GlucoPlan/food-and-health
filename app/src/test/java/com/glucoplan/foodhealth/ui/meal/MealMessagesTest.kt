@@ -1,5 +1,6 @@
 package com.glucoplan.foodhealth.ui.meal
 
+import com.glucoplan.foodhealth.data.profile.filledProfileForm
 import android.app.Application
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
@@ -95,7 +96,7 @@ class MealMessagesTest {
 
     @Test
     fun `после записи приходит «Записано»`() = runTest {
-        profiles.save(null, ProfileForm("Иван"))
+        profiles.save(null, filledProfileForm("Иван"))
         val profile = profiles.observeProfiles().await { it.isNotEmpty() }.single()
         prefs.setOwner(profile.id)
         products.save(null, ProductForm("Молоко", kcal = "60", protein = "3", fat = "3", carbs = "5"))

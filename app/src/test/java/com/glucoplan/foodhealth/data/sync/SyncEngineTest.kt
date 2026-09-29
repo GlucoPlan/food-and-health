@@ -224,10 +224,37 @@ class SyncEngineTest {
     fun `профили тоже синхронизируются`() = runTest {
         val a = phone("a")
         val b = phone("b")
-        a.profiles.save(null, com.glucoplan.foodhealth.data.profile.ProfileForm("Дочь", sd1Enabled = true))
+        a.profiles.save(null, com.glucoplan.foodhealth.data.profile.filledProfileForm("Дочь", sd1Enabled = true))
         a.engine.sync(); b.engine.sync()
         val p = b.profiles.observeProfiles().first().single()
         assertThat(p.name).isEqualTo("Дочь")
         assertThat(p.sd1Enabled).isTrue()
+    }
+
+    @Test
+    fun `рост и новые поля профиля доходят до другого телефона`() = runTest {
+        val a = phone("a")
+        val b = phone("b")
+        a.profiles.save(
+            null,
+            com.glucoplan.foodhealth.data.profile.filledProfileForm(
+                "Дочь", sex = com.glucoplan.foodhealth.data.profile.Sex.FEMALE,
+                birthDate = java.time.LocalDate.of(2017, 10, 1),
+            ).copy(waterEnabled = true, waterMlPerKg = "25"),
+        )
+        val id = a.profiles.observeProfiles().first().single().id
+        val heights = com.glucoplan.foodhealth.data.profile.HeightRepository(a.db.heightDao(), a.prefs)
+        heights.add(id, "131,5", java.time.LocalDate.of(2026, 9, 1), java.time.LocalDate.of(2026, 9, 30))
+
+        a.engine.sync(); b.engine.sync()
+
+        val p = b.profiles.get(id)!!
+        assertThat(p.sex).isEqualTo(com.glucoplan.foodhealth.data.profile.Sex.FEMALE)
+        assertThat(p.birthDate).isEqualTo(java.time.LocalDate.of(2017, 10, 1))
+        assertThat(p.waterEnabled).isTrue()
+        assertThat(p.waterMlPerKg).isEqualTo(25.0)
+        val bHeights = com.glucoplan.foodhealth.data.profile.HeightRepository(b.db.heightDao(), b.prefs)
+        assertThat(bHeights.observeHistory(id).first().single().heightCm).isEqualTo(131.5)
+        assertThat(server.records.keys.map { it.first }).contains("height")
     }
 }

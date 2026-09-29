@@ -177,5 +177,35 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+/**
+ * 5 → 6: этап 2 — пол, дата рождения и вода в профиле, история роста.
+ * Курсор синхронизации сбрасывается: телефон заново получит всё, в том числе записи роста,
+ * пришедшие на сервер до обновления этого телефона (SyncTables). Неотправленные правки не затираются.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `profile` ADD COLUMN `sex` TEXT")
+        db.execSQL("ALTER TABLE `profile` ADD COLUMN `birth_date` TEXT")
+        db.execSQL("ALTER TABLE `profile` ADD COLUMN `water_enabled` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `profile` ADD COLUMN `water_ml_per_kg` REAL NOT NULL DEFAULT 30")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `height` (
+                `id` TEXT NOT NULL,
+                `profile_id` TEXT NOT NULL,
+                `measured_at` INTEGER NOT NULL,
+                `height_cm` REAL NOT NULL,
+                `updated_at` INTEGER NOT NULL,
+                `deleted` INTEGER NOT NULL,
+                `device_id` TEXT NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_height_profile_id` ON `height` (`profile_id`)")
+        db.execSQL("UPDATE sync_state SET cursor = 0 WHERE id = 1")
+    }
+}
+
 /** Все миграции по порядку; каждая покрыта MigrationTest. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)

@@ -6,6 +6,8 @@ import com.glucoplan.foodhealth.data.db.DatabaseGuard
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
 import com.glucoplan.foodhealth.data.profile.Profile
 import com.glucoplan.foodhealth.data.profile.ProfileForm
+import com.glucoplan.foodhealth.data.profile.Sex
+import java.time.LocalDate
 import com.glucoplan.foodhealth.data.profile.ProfileRepository
 import com.glucoplan.foodhealth.data.profile.ProfileValidation
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,12 +37,15 @@ class OwnerSelectViewModel @Inject constructor(
         }
     }
 
-    /** Новый профиль с первого экрана: только имя, флаги настраиваются потом в настройках. */
-    fun add(name: String, onResult: (String?) -> Unit) {
+    /**
+     * Новый профиль с первого экрана: имя, пол и дата рождения (обязательны, ТЗ 15.3),
+     * остальное — потом в настройках. Колбэк получает ошибки или null.
+     */
+    fun add(name: String, sex: Sex?, birthDate: LocalDate?, onResult: (ProfileValidation.Invalid?) -> Unit) {
         viewModelScope.launch {
-            when (val result = profiles.save(null, ProfileForm(name))) {
+            when (val result = profiles.save(null, ProfileForm(name, sex = sex, birthDate = birthDate))) {
                 is ProfileValidation.Valid -> onResult(null)
-                is ProfileValidation.Invalid -> onResult(result.nameError)
+                is ProfileValidation.Invalid -> onResult(result)
             }
         }
     }

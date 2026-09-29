@@ -33,6 +33,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.glucoplan.foodhealth.data.profile.ProfileValidation
+import com.glucoplan.foodhealth.data.profile.Sex
+import com.glucoplan.foodhealth.ui.profile.DateField
+import com.glucoplan.foodhealth.ui.profile.SexChips
+import java.time.LocalDate
 
 /** Первый запуск (ТЗ 6.1 до этапа 1б): создать профили и выбрать владельца телефона. */
 @Composable
@@ -88,33 +93,46 @@ fun OwnerSelectScreen(viewModel: OwnerSelectViewModel = hiltViewModel()) {
     }
 
     if (adding) {
-        AddProfileDialog(
-            onAdd = { name, onError -> viewModel.add(name) { error -> if (error == null) adding = false else onError(error) } },
-            onDismiss = { adding = false },
-        )
+        AddProfileDialog(viewModel = viewModel, onDone = { adding = false })
     }
 }
 
+/** Новый профиль: имя, пол, дата рождения (ТЗ 15.3). */
 @Composable
-private fun AddProfileDialog(onAdd: (String, (String) -> Unit) -> Unit, onDismiss: () -> Unit) {
+private fun AddProfileDialog(viewModel: OwnerSelectViewModel, onDone: () -> Unit) {
     var name by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
+    var sex by remember { mutableStateOf<Sex?>(null) }
+    var birthDate by remember { mutableStateOf<LocalDate?>(null) }
+    var errors by remember { mutableStateOf<ProfileValidation.Invalid?>(null) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = onDone,
         title = { Text("Новый профиль") },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it; error = null },
-                label = { Text("Имя") },
-                singleLine = true,
-                isError = error != null,
-                supportingText = error?.let { msg -> @Composable { Text(msg) } },
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; errors = errors?.copy(nameError = null) },
+                    label = { Text("Имя") },
+                    singleLine = true,
+                    isError = errors?.nameError != null,
+                    supportingText = errors?.nameError?.let { msg -> @Composable { Text(msg) } },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                )
+                SexChips(sex, errors?.sexError) { sex = it; errors = errors?.copy(sexError = null) }
+                DateField(
+                    label = "Дата рождения",
+                    date = birthDate,
+                    error = errors?.birthDateError,
+                    onPick = { birthDate = it; errors = errors?.copy(birthDateError = null) },
+                )
+            }
         },
-        confirmButton = { TextButton(onClick = { onAdd(name) { error = it } }) { Text("Добавить") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+        confirmButton = {
+            TextButton(onClick = { viewModel.add(name, sex, birthDate) { e -> if (e == null) onDone() else errors = e } }) {
+                Text("Добавить")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDone) { Text("Отмена") } },
     )
 }

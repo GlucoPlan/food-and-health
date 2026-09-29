@@ -56,7 +56,7 @@ class ProfileRepositoryTest {
     @Test
     fun `новый профиль получает UUID, updated_at и device_id`() = runTest {
         val before = System.currentTimeMillis()
-        val result = repo.save(null, ProfileForm("Иван"))
+        val result = repo.save(null, filledProfileForm("Иван"))
         val after = System.currentTimeMillis()
 
         assertThat(result).isInstanceOf(ProfileValidation.Valid::class.java)
@@ -76,26 +76,57 @@ class ProfileRepositoryTest {
 
     @Test
     fun `изменение сохраняет id и обновляет поля`() = runTest {
-        repo.save(null, ProfileForm("Дочь"))
+        repo.save(null, filledProfileForm("Дочь"))
         val id = repo.observeProfiles().first().single().id
 
-        repo.save(id, ProfileForm("Дочь", sd1Enabled = true, showXe = true, carbsPerXe = "12"))
+        repo.save(id, filledProfileForm("Дочь", sd1Enabled = true, showXe = true, carbsPerXe = "12"))
 
-        assertThat(repo.get(id)).isEqualTo(Profile(id, "Дочь", sd1Enabled = true, showXe = true, carbsPerXe = 12.0))
+        assertThat(repo.get(id)).isEqualTo(
+            Profile(
+                id, "Дочь", sd1Enabled = true, showXe = true, carbsPerXe = 12.0,
+                sex = Sex.FEMALE, birthDate = java.time.LocalDate.of(2000, 1, 1),
+            )
+        )
     }
 
     @Test
     fun `переименование в своё же имя — не дубликат`() = runTest {
-        repo.save(null, ProfileForm("Иван"))
+        repo.save(null, filledProfileForm("Иван"))
         val id = repo.observeProfiles().first().single().id
-        assertThat(repo.save(id, ProfileForm("иван"))).isInstanceOf(ProfileValidation.Valid::class.java)
+        assertThat(repo.save(id, filledProfileForm("иван"))).isInstanceOf(ProfileValidation.Valid::class.java)
     }
 
     @Test
     fun `дубликат не сохраняется`() = runTest {
-        repo.save(null, ProfileForm("Иван"))
-        val result = repo.save(null, ProfileForm("Иван"))
+        repo.save(null, filledProfileForm("Иван"))
+        val result = repo.save(null, filledProfileForm("Иван"))
         assertThat(result).isInstanceOf(ProfileValidation.Invalid::class.java)
         assertThat(db.profileDao().getActive()).hasSize(1)
+    }
+
+    @Test
+    fun `пол, дата рождения и вода сохраняются`() = runTest {
+        repo.save(null, filledProfileForm("Я", sex = Sex.MALE, birthDate = java.time.LocalDate.of(1985, 3, 8))
+            .copy(waterEnabled = true, waterMlPerKg = "35"))
+        val p = repo.observeProfiles().first().single()
+        assertThat(p.sex).isEqualTo(Sex.MALE)
+        assertThat(p.birthDate).isEqualTo(java.time.LocalDate.of(1985, 3, 8))
+        assertThat(p.waterEnabled).isTrue()
+        assertThat(p.waterMlPerKg).isEqualTo(35.0)
+        assertThat(p.incomplete).isFalse()
+    }
+
+    @Test
+    fun `старый профиль без пола и даты читается и помечен неполным`() = runTest {
+        db.profileDao().upsert(
+            com.glucoplan.foodhealth.data.db.ProfileEntity("old", "Рита", false, false, 10.0, 1L, false, "dev")
+        )
+        val p = repo.get("old")!!
+        assertThat(p.sex).isNull()
+        assertThat(p.birthDate).isNull()
+        assertThat(p.incomplete).isTrue()
+        assertThat(p.waterMlPerKg).isEqualTo(30.0)
+        // Без пола и даты сохранить нельзя
+        assertThat(repo.save("old", ProfileForm("Рита"))).isInstanceOf(ProfileValidation.Invalid::class.java)
     }
 }

@@ -1,5 +1,6 @@
 package com.glucoplan.foodhealth.data.sync
 
+import com.glucoplan.foodhealth.data.profile.filledProfileForm
 import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.glucoplan.foodhealth.data.pan.PanForm
@@ -99,7 +100,7 @@ class SetupSyncTest {
     @Test
     fun `новый телефон — подключение, загрузка, выбор владельца`() = runTest {
         val a = phone("a")
-        a.profiles.save(null, ProfileForm("Рита"))
+        a.profiles.save(null, filledProfileForm("Рита"))
         a.engine.sync()
 
         val fresh = phone("fresh", connected = false)
@@ -119,7 +120,7 @@ class SetupSyncTest {
     @Test
     fun `база очищена (8_4) — всё загружается с сервера, владелец узнаётся сам`() = runTest {
         val a = phone("a")
-        a.profiles.save(null, ProfileForm("Я"))
+        a.profiles.save(null, filledProfileForm("Я"))
         val me = a.profiles.observeProfiles().first().single().id
         a.prefs.setOwner(me)
         a.addProduct("Молоко")

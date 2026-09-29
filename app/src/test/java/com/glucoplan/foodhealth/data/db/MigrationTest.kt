@@ -205,4 +205,41 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 5 — пол, дата рождения и вода в профиле, рост, курсор сброшен`() = runTest {
+        createDatabase(5) { db ->
+            db.execSQL(
+                "INSERT INTO profile (id, name, sd1_enabled, show_xe, carbs_per_xe, updated_at, deleted, device_id) " +
+                    "VALUES ('p1', 'Иван', 0, 1, 12.0, 100, 0, 'dev')"
+            )
+            db.execSQL("UPDATE sync_state SET cursor = 51, initialized = 1 WHERE id = 1")
+        }
+
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val profile = db.profileDao().getById("p1")!!
+            assertThat(profile.name).isEqualTo("Иван")
+            assertThat(profile.carbsPerXe).isEqualTo(12.0)
+            assertThat(profile.sex).isNull()
+            assertThat(profile.birthDate).isNull()
+            assertThat(profile.waterEnabled).isFalse()
+            assertThat(profile.waterMlPerKg).isEqualTo(30.0)
+
+            val state = db.syncDao().state()!!
+            assertThat(state.cursor).isEqualTo(0)
+            assertThat(state.initialized).isTrue()
+
+            db.heightDao().upsert(HeightEntity("h", "p1", 1L, 172.0, 1L, false, "dev"))
+            assertThat(db.heightDao().getById("h")!!.heightCm).isEqualTo(172.0)
+            // Рост синхронизируется: новая таблица под триггерами очереди
+            assertThat(db.syncDao().outbox().map { it.tbl to it.id }).contains("height" to "h")
+        } finally {
+            db.close()
+        }
+    }
 }

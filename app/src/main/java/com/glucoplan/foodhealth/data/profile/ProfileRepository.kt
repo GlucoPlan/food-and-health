@@ -5,6 +5,7 @@ import com.glucoplan.foodhealth.data.db.ProfileEntity
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,13 +25,15 @@ class ProfileRepository @Inject constructor(
      * Создаёт профиль ([id] = null) или сохраняет изменения.
      * Если форма заполнена с ошибками, ничего не пишет и возвращает Invalid.
      */
-    suspend fun save(id: String?, form: ProfileForm): ProfileValidation {
+    suspend fun save(id: String?, form: ProfileForm, today: LocalDate = LocalDate.now()): ProfileValidation {
         val existing = id?.let { dao.getById(it) }
         val others = dao.getActive().filter { it.id != id }.map { it.name }
         val result = ProfileValidator.validate(
             form,
             others,
-            existing?.carbsPerXe ?: ProfileValidator.DEFAULT_CARBS_PER_XE,
+            currentCarbs = existing?.carbsPerXe ?: ProfileValidator.DEFAULT_CARBS_PER_XE,
+            currentWater = existing?.waterMlPerKg ?: ProfileValidator.DEFAULT_WATER_ML_PER_KG,
+            today = today,
         )
         if (result is ProfileValidation.Valid) {
             dao.upsert(
@@ -43,11 +46,25 @@ class ProfileRepository @Inject constructor(
                     updatedAt = System.currentTimeMillis(),
                     deleted = existing?.deleted ?: false,
                     deviceId = devicePrefs.deviceId(),
+                    sex = form.sex?.code,
+                    birthDate = form.birthDate?.toString(),
+                    waterEnabled = form.waterEnabled,
+                    waterMlPerKg = result.waterMlPerKg,
                 )
             )
         }
         return result
     }
 
-    private fun ProfileEntity.toProfile() = Profile(id, name, sd1Enabled, showXe, carbsPerXe)
+    private fun ProfileEntity.toProfile() = Profile(
+        id = id,
+        name = name,
+        sd1Enabled = sd1Enabled,
+        showXe = showXe,
+        carbsPerXe = carbsPerXe,
+        sex = Sex.fromCode(sex),
+        birthDate = birthDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+        waterEnabled = waterEnabled,
+        waterMlPerKg = waterMlPerKg,
+    )
 }

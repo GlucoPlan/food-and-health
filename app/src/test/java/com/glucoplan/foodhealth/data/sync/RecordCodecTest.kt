@@ -93,7 +93,7 @@ class RecordCodecTest {
         assertThat(b.db.profileDao().getById("pr")!!.name).isEqualTo("Иван")
 
         // Старый телефон правит запись — неизвестное поле не теряется
-        b.profiles.save("pr", com.glucoplan.foodhealth.data.profile.ProfileForm("Иван Петрович"))
+        b.profiles.save("pr", com.glucoplan.foodhealth.data.profile.filledProfileForm("Иван Петрович"))
         val back = codec.read("profile", listOf("pr")).getValue("pr")
         assertThat(back["birth_year"]).isEqualTo(JsonPrimitive(1980))
         assertThat(back["name"]).isEqualTo(JsonPrimitive("Иван Петрович"))

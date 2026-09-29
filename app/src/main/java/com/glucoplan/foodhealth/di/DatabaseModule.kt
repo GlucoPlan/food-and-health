@@ -6,6 +6,7 @@ import com.glucoplan.foodhealth.data.db.ALL_MIGRATIONS
 import com.glucoplan.foodhealth.data.db.AppDatabase
 import com.glucoplan.foodhealth.data.db.DatabaseGuard
 import com.glucoplan.foodhealth.data.db.DishDao
+import com.glucoplan.foodhealth.data.db.HeightDao
 import com.glucoplan.foodhealth.data.db.MealDao
 import com.glucoplan.foodhealth.data.db.SyncDao
 import com.glucoplan.foodhealth.data.db.SyncTriggers
@@ -52,4 +53,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSyncDao(db: AppDatabase): SyncDao = db.syncDao()
+
+    @Provides
+    fun provideHeightDao(db: AppDatabase): HeightDao = db.heightDao()
 }

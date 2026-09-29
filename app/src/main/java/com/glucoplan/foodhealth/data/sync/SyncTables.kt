@@ -8,5 +8,9 @@ package com.glucoplan.foodhealth.data.sync
  * (sync_state.cursor = 0), чтобы телефон заново получил записи, пришедшие до обновления.
  */
 object SyncTables {
-    val ALL = listOf("profile", "product", "pan", "dish", "dish_version", "dish_ingredient", "meal", "meal_item")
+    val ALL = listOf(
+        "profile", "product", "pan", "dish", "dish_version", "dish_ingredient", "meal", "meal_item",
+        // Этап 2
+        "height",
+    )
 }
