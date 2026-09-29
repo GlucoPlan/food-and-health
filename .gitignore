@@ -1,0 +1,23 @@
+# Сборка
+build/
+.gradle/
+.kotlin/
+local.properties
+*.apk
+*.aab
+output-metadata.json
+captures/
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Ключи подписи — никогда в репозиторий
+*.jks
+*.keystore
+
+*.log
+*.hprof

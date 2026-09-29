@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Цвета задаёт Compose; тема окна нужна только до первого кадра -->
+    <style name="Theme.FoodHealth" parent="android:Theme.Material.DayNight.NoActionBar" />
+</resources>
