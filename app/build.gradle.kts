@@ -67,6 +67,12 @@ android {
         }
     }
 
+    packaging {
+        // Нативные библиотеки ML Kit сжимаются в APK: обновление скачивается быстрее,
+        // при установке Android распаковывает их на телефон
+        jniLibs.useLegacyPackaging = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
