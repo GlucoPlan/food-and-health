@@ -27,15 +27,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.glucoplan.foodhealth.ui.dishes.DishesScreen
 import com.glucoplan.foodhealth.ui.history.HistoryScreen
 import com.glucoplan.foodhealth.ui.meal.MealScreen
 import com.glucoplan.foodhealth.ui.products.ProductsScreen
+import com.glucoplan.foodhealth.ui.settings.ProfileEditScreen
+import com.glucoplan.foodhealth.ui.settings.ProfileEditViewModel
 import com.glucoplan.foodhealth.ui.settings.SettingsScreen
+
+private const val SETTINGS_MAIN = "settings/main"
+private const val PROFILE_EDIT_BASE = "settings/profile"
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     Meal("meal", "Приём пищи", Icons.Filled.Restaurant),
@@ -85,7 +93,25 @@ fun AppNavigation(settingsBadge: Boolean) {
             composable(Tab.History.route) { HistoryScreen() }
             composable(Tab.Products.route) { ProductsScreen() }
             composable(Tab.Dishes.route) { DishesScreen() }
-            composable(Tab.Settings.route) { SettingsScreen() }
+            navigation(startDestination = SETTINGS_MAIN, route = Tab.Settings.route) {
+                composable(SETTINGS_MAIN) {
+                    SettingsScreen(onOpenProfile = { id ->
+                        navController.navigate(if (id == null) PROFILE_EDIT_BASE else "$PROFILE_EDIT_BASE?id=$id")
+                    })
+                }
+                composable(
+                    route = "$PROFILE_EDIT_BASE?${ProfileEditViewModel.ARG_ID}={${ProfileEditViewModel.ARG_ID}}",
+                    arguments = listOf(
+                        navArgument(ProfileEditViewModel.ARG_ID) {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) {
+                    ProfileEditScreen(onDone = { navController.popBackStack() })
+                }
+            }
         }
     }
 }

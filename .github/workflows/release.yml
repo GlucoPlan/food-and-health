@@ -62,6 +62,25 @@ jobs:
       - name: Unit tests
         run: ./gradlew testReleaseUnitTest
 
+      # Схема Room генерируется при сборке. В релиз не должна попасть версия базы,
+      # JSON-схемы которой нет в репозитории: по ней пишутся тесты миграций.
+      - name: Check Room schema is committed
+        id: schema
+        run: |
+          CHANGES=$(git status --porcelain app/schemas)
+          if [ -n "$CHANGES" ]; then
+            echo "$CHANGES"
+            echo "::error::Схема Room не закоммичена. Скачайте artifact room-schemas и закоммитьте app/schemas."
+            exit 1
+          fi
+
+      - name: Upload Room schema
+        if: failure() && steps.schema.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schemas
+          path: app/schemas
+
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore.jks
 
@@ -85,11 +104,16 @@ jobs:
         if: always()
         run: rm -f app/keystore.jks
 
+      - name: Release notes
+        run: |
+          # Сообщение коммита без служебных строк Co-Authored-By
+          git log -1 --format=%B "$GITHUB_SHA" | grep -vi '^co-authored-by:' > release_notes.md || true
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.2.1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ steps.commit.outputs.sha }}
           name: "Еда и здоровье ${{ steps.version.outputs.version }}"
-          body: ${{ github.event.head_commit.message }}
+          body_path: release_notes.md
           files: ${{ steps.apk.outputs.file }}
