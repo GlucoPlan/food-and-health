@@ -5,7 +5,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.glucoplan.foodhealth.data.db.AppDatabase
+import com.glucoplan.foodhealth.data.pan.PanPhotos
+import com.glucoplan.foodhealth.data.sync.PhotoSync
 import com.glucoplan.foodhealth.data.sync.SyncApi
+import com.glucoplan.foodhealth.data.sync.SyncSettings
 import com.glucoplan.foodhealth.data.sync.SyncBackend
 import dagger.Binds
 import dagger.Module
@@ -44,6 +48,11 @@ object AppModule {
     @Singleton
     fun providePreferences(@ApplicationContext context: Context): DataStore<Preferences> =
         PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("settings") }
+
+    @Provides
+    @Singleton
+    fun providePhotoSync(db: AppDatabase, photos: PanPhotos, settings: SyncSettings, backend: SyncBackend): PhotoSync =
+        PhotoSync(db, photos.directory(), settings, backend)
 
     @Provides
     @Singleton

@@ -18,6 +18,24 @@ class FakeServer(var pageSize: Int = 1000) : SyncBackend {
 
     fun rec(table: String, id: String) = records[table to id]
 
+    val photos = mutableMapOf<String, ByteArray>()
+    var photoUploads = 0
+
+    /** Сбой при загрузке фото (например, старый сервер без PUT /photos). */
+    var failPhotoUpload: (() -> SyncException)? = null
+
+    override suspend fun uploadPhoto(config: ServerConfig, id: String, jpeg: ByteArray) {
+        failWith?.let { throw it() }
+        failPhotoUpload?.let { throw it() }
+        photoUploads++
+        photos.putIfAbsent(id, jpeg)
+    }
+
+    override suspend fun downloadPhoto(config: ServerConfig, id: String): ByteArray? {
+        failWith?.let { throw it() }
+        return photos[id]
+    }
+
     override suspend fun health(config: ServerConfig): Int {
         failWith?.let { throw it() }
         return records.size

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.glucoplan.foodhealth.data.db.AppDatabase
 import com.glucoplan.foodhealth.data.db.SyncTriggers
 import com.glucoplan.foodhealth.data.meal.MealDraftStore
+import com.glucoplan.foodhealth.data.pan.PanRepository
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
 import com.glucoplan.foodhealth.data.product.Product
 import com.glucoplan.foodhealth.data.product.ProductForm
@@ -31,7 +32,9 @@ class Phone(dir: File, name: String, server: SyncBackend) {
     val draft = MealDraftStore(store, scope)
     val products = ProductRepository(db.productDao(), prefs)
     val profiles = ProfileRepository(db.profileDao(), prefs)
-    val engine = SyncEngine(db, settings, server, prefs, draft)
+    val pans = PanRepository(db.panDao(), prefs)
+    val photosDir = File(dir, "$name-photos").apply { mkdirs() }
+    val engine = SyncEngine(db, settings, server, prefs, draft, PhotoSync(db, photosDir, settings, server))
 
     suspend fun connect() = settings.saveConfig(ServerConfig("https://example.org", "k".repeat(20)))
 

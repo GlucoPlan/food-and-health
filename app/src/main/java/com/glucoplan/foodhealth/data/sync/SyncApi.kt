@@ -47,6 +47,12 @@ interface SyncBackend {
     suspend fun health(config: ServerConfig): Int
 
     suspend fun sync(config: ServerConfig, request: SyncRequest): SyncResponse
+
+    /** Загрузить фото под id телефона; повторная загрузка безопасна. */
+    suspend fun uploadPhoto(config: ServerConfig, id: String, jpeg: ByteArray)
+
+    /** Скачать фото; null — на сервере его пока нет. */
+    suspend fun downloadPhoto(config: ServerConfig, id: String): ByteArray?
 }
 
 @Singleton
@@ -66,6 +72,26 @@ class SyncApi @Inject constructor(client: OkHttpClient) : SyncBackend {
             Request.Builder().url("${config.url}/sync").post(SyncJson.encode(request).toRequestBody(JSON)),
         )
         return parse { SyncJson.decode(body) }
+    }
+
+    override suspend fun uploadPhoto(config: ServerConfig, id: String, jpeg: ByteArray) {
+        call(config, Request.Builder().url("${config.url}/photos/$id").put(jpeg.toRequestBody(JPEG)))
+    }
+
+    override suspend fun downloadPhoto(config: ServerConfig, id: String): ByteArray? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url("${config.url}/photos/$id").header("X-Family-Key", config.key).get().build()
+            http.newCall(request).execute().use { response ->
+                when {
+                    response.code == 404 -> null
+                    response.code == 401 -> throw SyncException.Unauthorized()
+                    !response.isSuccessful -> throw SyncException.Http(response.code)
+                    else -> response.body.bytes()
+                }
+            }
+        } catch (e: IOException) {
+            throw SyncException.Network(e)
+        }
     }
 
     private suspend fun call(config: ServerConfig, builder: Request.Builder): String = withContext(Dispatchers.IO) {
@@ -92,6 +118,7 @@ class SyncApi @Inject constructor(client: OkHttpClient) : SyncBackend {
 
     private companion object {
         val JSON = "application/json".toMediaType()
+        val JPEG = "image/jpeg".toMediaType()
     }
 }
 

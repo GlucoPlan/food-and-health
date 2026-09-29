@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -69,7 +70,15 @@ class SyncSettings @Inject constructor(private val prefs: DataStore<Preferences>
         }
     }
 
+    /** Фото, которые этот телефон уже отправил на сервер (имена файлов). */
+    suspend fun uploadedPhotos(): Set<String> = prefs.data.first()[KEY_UPLOADED_PHOTOS].orEmpty()
+
+    suspend fun markPhotoUploaded(name: String) {
+        prefs.edit { it[KEY_UPLOADED_PHOTOS] = it[KEY_UPLOADED_PHOTOS].orEmpty() + name }
+    }
+
     private companion object {
+        val KEY_UPLOADED_PHOTOS = stringSetPreferencesKey("sync_uploaded_photos")
         val KEY_URL = stringPreferencesKey("server_url")
         val KEY_KEY = stringPreferencesKey("server_family_key")
         val KEY_LAST_OK = longPreferencesKey("sync_last_ok")

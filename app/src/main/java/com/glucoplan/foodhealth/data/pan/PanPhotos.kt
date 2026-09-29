@@ -9,6 +9,10 @@ import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -28,6 +32,9 @@ class PanPhotos @Inject constructor(
     private val cameraDir get() = File(context.cacheDir, "camera").apply { mkdirs() }
 
     fun file(name: String): File = file(context, name)
+
+    /** Папка фото — для синхронизации. */
+    fun directory(): File = directory(context).apply { mkdirs() }
 
     /** Uri для системной камеры: снимок пишется во временный файл. */
     fun cameraUri(): Uri {
@@ -95,5 +102,12 @@ class PanPhotos @Inject constructor(
 
         /** Файл фото по имени — для показа миниатюр. */
         fun file(context: Context, name: String): File = File(directory(context), name)
+
+        private val _revision = MutableStateFlow(0)
+
+        /** Растёт, когда синхронизация скачала фото: миниатюры перечитывают файлы. */
+        val revision: StateFlow<Int> = _revision.asStateFlow()
+
+        fun onPhotosDownloaded() = _revision.update { it + 1 }
     }
 }

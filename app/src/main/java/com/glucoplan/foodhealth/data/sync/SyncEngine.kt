@@ -46,6 +46,7 @@ class SyncEngine @Inject constructor(
     private val backend: SyncBackend,
     private val devicePrefs: DevicePrefs,
     private val draftStore: MealDraftStore,
+    private val photos: PhotoSync,
 ) {
     private val mutex = Mutex()
     private val _running = MutableStateFlow(false)
@@ -87,19 +88,18 @@ class SyncEngine @Inject constructor(
         var sent = 0
         var received = 0
         // Ограничение на случай, если очередь всё время пополняется правками
-        repeat(MAX_ROUNDS) {
+        for (round in 0 until MAX_ROUNDS) {
             val batch = withContext(Dispatchers.IO) { readOutbox() }
             val response = backend.sync(config, SyncRequest(deviceId, state().cursor, batch.changes))
             received += withContext(Dispatchers.IO) { applyResponse(batch, response) }
             sent += batch.changes.size
             // Сервер отдал всё, а очередь ушла не полной порцией — значит, и её больше нет.
             // Правки, сделанные во время запроса, уйдут следующей синхронизацией.
-            if (!response.hasMore && batch.versions.size < batchSize) {
-                markInitialized()
-                return SyncResult.Success(sent, received)
-            }
+            if (!response.hasMore && batch.versions.size < batchSize) break
         }
         markInitialized()
+        // Фото — после записей: так ссылки на них уже есть у всех
+        photos.run(config)
         return SyncResult.Success(sent, received)
     }
 
