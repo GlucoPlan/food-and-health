@@ -37,7 +37,7 @@ class MealViewModel @Inject constructor(
         // Сообщение от «Повторить» из истории: что пропущено
         viewModelScope.launch {
             store.notice.filterNotNull().collect {
-                _message.value = it
+                showMessage(it)
                 store.onNoticeShown()
             }
         }
@@ -55,7 +55,7 @@ class MealViewModel @Inject constructor(
                 is MealRecordResult.Recorded -> {
                     store.replace(MealDraft())
                     transient.value = EditorTransient()
-                    _message.value = "Записано: ${NumberText.format(result.total.kcal, 0)} ккал"
+                    showMessage("Записано: ${NumberText.format(result.total.kcal, 0)} ккал")
                 }
                 is MealRecordResult.Invalid -> transient.update { it.copy(errors = result.errors) }
             }

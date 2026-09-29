@@ -18,6 +18,8 @@ import com.glucoplan.foodhealth.data.profile.Profile
 import com.glucoplan.foodhealth.data.profile.ProfileRepository
 import com.glucoplan.foodhealth.ui.picker.PickedItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -91,8 +94,17 @@ abstract class MealEditorViewModel(
     /** Отсканирован неизвестный код — экран открывает создание продукта. */
     val createWithBarcode: StateFlow<String?> = _createWithBarcode.asStateFlow()
 
-    protected val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
+    private val _messages = Channel<String>(Channel.BUFFERED)
+
+    /**
+     * Сообщения для snackbar. Очередь, а не состояние: сообщение ждёт, пока экран его покажет,
+     * и не теряется, если пришло, когда экран был на другой вкладке.
+     */
+    val messages: Flow<String> = _messages.receiveAsFlow()
+
+    protected fun showMessage(text: String) {
+        _messages.trySend(text)
+    }
 
     private val versionCatalog = dishes.observeVersionCatalog()
 
@@ -221,7 +233,4 @@ abstract class MealEditorViewModel(
 
     fun onVersionDismissed() = transient.update { it.copy(versionChoice = null) }
 
-    open fun onMessageShown() {
-        _message.value = null
-    }
 }

@@ -37,15 +37,12 @@ fun MealScreen(
     viewModel: MealViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
 
     MealEditorEffects(viewModel, picked, scannedBarcode, createdProductId, onResultsHandled, onCreateProduct)
-    LaunchedEffect(message) {
-        message?.let {
-            viewModel.onMessageShown()
-            snackbar.showSnackbar(it)
-        }
+    // Ключ Unit: эффект не перезапускается, начатый показ сообщения ничто не отменяет
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { snackbar.showSnackbar(it) }
     }
 
     Scaffold(
