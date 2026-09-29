@@ -105,9 +105,8 @@ jobs:
         run: rm -f app/keystore.jks
 
       - name: Release notes
-        run: |
-          # Сообщение коммита без служебных строк Co-Authored-By
-          git log -1 --format=%B "$GITHUB_SHA" | grep -vi '^co-authored-by:' > release_notes.md || true
+        # Все коммиты с прошлого релиза (checkout с fetch-depth: 0 приносит теги)
+        run: bash .github/scripts/release_notes.sh "$GITHUB_SHA" > release_notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.2.1
