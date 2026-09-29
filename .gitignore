@@ -21,3 +21,9 @@ captures/
 
 *.log
 *.hprof
+
+# Сервер
+server/.venv/
+server/data/
+__pycache__/
+.pytest_cache/

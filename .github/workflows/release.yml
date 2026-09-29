@@ -4,6 +4,9 @@ name: Build & Release APK
 on:
   push:
     branches: [ main ]
+    # Правки только сервера APK не меняют — релиз не нужен
+    paths-ignore:
+      - 'server/**'
   workflow_dispatch:
 
 permissions:
