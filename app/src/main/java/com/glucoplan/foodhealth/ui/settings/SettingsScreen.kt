@@ -39,6 +39,18 @@ import com.glucoplan.foodhealth.data.profile.Profile
 import com.glucoplan.foodhealth.data.profile.ProfileValidator
 import com.glucoplan.foodhealth.update.DownloadState
 import com.glucoplan.foodhealth.update.UpdateState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import com.glucoplan.foodhealth.data.sync.FirstSyncChoice
+import com.glucoplan.foodhealth.ui.format.mealTime
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,6 +77,8 @@ fun SettingsScreen(
         Text("Настройки", style = MaterialTheme.typography.headlineSmall)
         OwnerCard(profiles, ownerId, onSelect = viewModel::setOwner)
         ProfilesCard(profiles, onOpenProfile)
+        ServerCard(viewModel)
+        SyncCard(viewModel)
         Card(Modifier.fillMaxWidth()) {
             ListItem(
                 headlineContent = { Text("Кастрюли") },
@@ -77,6 +91,141 @@ fun SettingsScreen(
             state = update,
             onUpdate = viewModel::startUpdate,
             onCheck = viewModel::checkNow,
+        )
+    }
+}
+
+/** Сервер (ТЗ 4.6): адрес и ключ семьи, «Проверить соединение». */
+@Composable
+private fun ServerCard(viewModel: SettingsViewModel) {
+    val server by viewModel.server.collectAsStateWithLifecycle()
+    var showKey by remember { mutableStateOf(false) }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Сервер", style = MaterialTheme.typography.titleMedium)
+            OutlinedTextField(
+                value = server.url,
+                onValueChange = viewModel::onUrlChange,
+                label = { Text("Адрес") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = server.key,
+                onValueChange = viewModel::onKeyChange,
+                label = { Text("Ключ семьи") },
+                singleLine = true,
+                visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { showKey = !showKey }) {
+                        Icon(
+                            if (showKey) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (showKey) "Скрыть ключ" else "Показать ключ",
+                        )
+                    }
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = viewModel::saveAndCheck, enabled = !server.checking) {
+                    Text("Проверить соединение")
+                }
+                if (server.checking) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+            server.checkMessage?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (server.checkOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+/** Синхронизация (ТЗ 4.6): последняя успешная, «Синхронизировать сейчас», ошибка. */
+@Composable
+private fun SyncCard(viewModel: SettingsViewModel) {
+    val configured by viewModel.configured.collectAsStateWithLifecycle()
+    val status by viewModel.syncStatus.collectAsStateWithLifecycle()
+    val syncing by viewModel.syncing.collectAsStateWithLifecycle()
+    val pending by viewModel.pending.collectAsStateWithLifecycle()
+    val choice by viewModel.choice.collectAsStateWithLifecycle()
+    var confirmReplace by remember { mutableStateOf(false) }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Синхронизация", style = MaterialTheme.typography.titleMedium)
+            if (!configured) {
+                Text(
+                    "Сервер не подключён: данные хранятся только на этом телефоне.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                return@Column
+            }
+            Text(status.lastSuccessAt?.let { "Последняя: ${mealTime(it)}" } ?: "Ещё не синхронизировалось")
+            if (pending > 0) {
+                Text(
+                    "Не отправлено изменений: $pending",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            status.lastError?.let { error ->
+                Text(
+                    "Ошибка" + (status.lastErrorAt?.let { " (${mealTime(it)})" } ?: "") + ": $error",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { viewModel.syncNow() }, enabled = !syncing) { Text("Синхронизировать сейчас") }
+                if (syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+        }
+    }
+
+    choice?.let { serverRecords ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissChoice,
+            title = { Text("На сервере уже есть данные") },
+            text = {
+                Text(
+                    "Записей на сервере: $serverRecords. На этом телефоне тоже есть данные.\n\n" +
+                        "«Отправить мои» — объединить: записи телефона добавятся к серверным. Профили и продукты, " +
+                        "заведённые на разных телефонах отдельно, окажутся дважды.\n\n" +
+                        "«Заменить» — удалить данные этого телефона и загрузить с сервера."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.syncNow(FirstSyncChoice.MERGE) }) { Text("Отправить мои") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissChoice(); confirmReplace = true }) { Text("Заменить") }
+            },
+        )
+    }
+
+    if (confirmReplace) {
+        AlertDialog(
+            onDismissRequest = { confirmReplace = false },
+            title = { Text("Удалить данные телефона?") },
+            text = {
+                Text(
+                    "Всё, что записано на этом телефоне, будет удалено и заменено данными сервера. " +
+                        "Владельца телефона нужно будет выбрать заново."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmReplace = false; viewModel.syncNow(FirstSyncChoice.REPLACE) }) {
+                    Text("Заменить", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmReplace = false }) { Text("Отмена") } },
         )
     }
 }

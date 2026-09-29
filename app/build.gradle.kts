@@ -124,6 +124,11 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
+    // Синхронизация в фоне (ТЗ 6)
+    implementation(libs.work.runtime)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.androidx.compiler)
+
     implementation(libs.okhttp)
     implementation(libs.coroutines.android)
     implementation(libs.datastore.preferences)

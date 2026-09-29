@@ -2,6 +2,7 @@ package com.glucoplan.foodhealth.data.db
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.glucoplan.foodhealth.data.sync.SyncTables
 
 /** 1 → 2: продукты. */
 val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -151,5 +152,30 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/**
+ * 4 → 5: синхронизация. Всё, что накоплено на телефоне до подключения к серверу,
+ * ставится в очередь отправки. Триггеры создаёт SyncTriggers при открытии базы.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `sync_outbox` (`tbl` TEXT NOT NULL, `id` TEXT NOT NULL, " +
+                "`version` INTEGER NOT NULL, PRIMARY KEY(`tbl`, `id`))"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `sync_state` (`id` INTEGER NOT NULL, `applying` INTEGER NOT NULL, " +
+                "`cursor` INTEGER NOT NULL, `initialized` INTEGER NOT NULL, PRIMARY KEY(`id`))"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `sync_extra` (`tbl` TEXT NOT NULL, `id` TEXT NOT NULL, " +
+                "`json` TEXT NOT NULL, PRIMARY KEY(`tbl`, `id`))"
+        )
+        db.execSQL("INSERT OR IGNORE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 0, 0)")
+        SyncTables.ALL.forEach { table ->
+            db.execSQL("INSERT OR REPLACE INTO sync_outbox (tbl, id, version) SELECT '$table', id, 1 FROM `$table`")
+        }
+    }
+}
+
 /** Все миграции по порядку; каждая покрыта MigrationTest. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)

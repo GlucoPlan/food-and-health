@@ -18,6 +18,9 @@ import androidx.room.TypeConverters
         DishIngredientEntity::class,
         MealEntity::class,
         MealItemEntity::class,
+        SyncOutboxEntity::class,
+        SyncStateEntity::class,
+        SyncExtraEntity::class,
     ],
     version = AppDatabase.VERSION,
     exportSchema = true,
@@ -35,8 +38,10 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun mealDao(): MealDao
 
+    abstract fun syncDao(): SyncDao
+
     companion object {
-        const val VERSION = 4
+        const val VERSION = 5
         const val NAME = "food_health.db"
     }
 }

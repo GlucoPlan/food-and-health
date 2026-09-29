@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.glucoplan.foodhealth.data.sync.SyncScheduler
 import com.glucoplan.foodhealth.ui.navigation.AppNavigation
 import com.glucoplan.foodhealth.ui.navigation.RootState
 import com.glucoplan.foodhealth.ui.navigation.RootViewModel
@@ -25,6 +26,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var updateRepository: UpdateRepository
+    @Inject lateinit var syncScheduler: SyncScheduler
 
     private val rootViewModel: RootViewModel by viewModels()
 
@@ -32,7 +34,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Проверка обновления при запуске, не при повороте экрана
-        if (savedInstanceState == null) updateRepository.checkIfDue()
+        if (savedInstanceState == null) {
+            updateRepository.checkIfDue()
+            // ТЗ 6: синхронизация при запуске
+            syncScheduler.syncNow()
+        }
         setContent {
             FoodHealthTheme {
                 val root by rootViewModel.state.collectAsStateWithLifecycle()

@@ -7,6 +7,8 @@ import com.glucoplan.foodhealth.data.db.AppDatabase
 import com.glucoplan.foodhealth.data.db.DatabaseGuard
 import com.glucoplan.foodhealth.data.db.DishDao
 import com.glucoplan.foodhealth.data.db.MealDao
+import com.glucoplan.foodhealth.data.db.SyncDao
+import com.glucoplan.foodhealth.data.db.SyncTriggers
 import com.glucoplan.foodhealth.data.db.PanDao
 import com.glucoplan.foodhealth.data.db.ProductDao
 import com.glucoplan.foodhealth.data.db.ProfileDao
@@ -27,6 +29,7 @@ object DatabaseModule {
         guard.prepare(AppDatabase.NAME, AppDatabase.VERSION)
         return Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.NAME)
             .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
             // Страховка, если DatabaseGuard не смог прочитать версию файла
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
@@ -46,4 +49,7 @@ object DatabaseModule {
 
     @Provides
     fun provideMealDao(db: AppDatabase): MealDao = db.mealDao()
+
+    @Provides
+    fun provideSyncDao(db: AppDatabase): SyncDao = db.syncDao()
 }

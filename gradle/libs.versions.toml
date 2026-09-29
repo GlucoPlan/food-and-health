@@ -15,6 +15,8 @@ camerax = "1.5.0"
 mlkit-barcode = "17.3.0"
 coil = "2.7.0"
 exifinterface = "1.4.1"
+work = "2.11.2"
+hilt-androidx = "1.2.0"
 core-ktx = "1.19.0"
 activity = "1.13.0"
 
@@ -41,7 +43,10 @@ room-compiler = { group = "androidx.room", name = "room-compiler", version.ref =
 
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version = "1.2.0" }
+hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt-androidx" }
+hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hilt-androidx" }
+hilt-androidx-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hilt-androidx" }
+work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 

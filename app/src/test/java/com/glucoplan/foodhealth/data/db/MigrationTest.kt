@@ -172,4 +172,37 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 4 — всё накопленное встаёт в очередь отправки, триггеры работают`() = runTest {
+        createDatabase(4) { db ->
+            db.execSQL(
+                "INSERT INTO profile (id, name, sd1_enabled, show_xe, carbs_per_xe, updated_at, deleted, device_id) " +
+                    "VALUES ('p1', 'Иван', 0, 0, 10.0, 100, 0, 'dev')"
+            )
+            db.execSQL(
+                "INSERT INTO meal (id, profile_id, eaten_at, notes, glucose, insulin_dose, updated_at, deleted, device_id) " +
+                    "VALUES ('m1', 'p1', 1, NULL, NULL, NULL, 1, 0, 'dev')"
+            )
+        }
+
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            db.openHelper.writableDatabase
+            assertThat(db.syncDao().outbox().map { it.tbl to it.id })
+                .containsExactly("profile" to "p1", "meal" to "m1")
+            val state = db.syncDao().state()!!
+            assertThat(state.cursor).isEqualTo(0)
+            assertThat(state.initialized).isFalse()
+
+            db.profileDao().upsert(ProfileEntity("p2", "Дочь", true, false, 10.0, 2, false, "dev"))
+            assertThat(db.syncDao().outbox().map { it.id }).contains("p2")
+        } finally {
+            db.close()
+        }
+    }
 }
