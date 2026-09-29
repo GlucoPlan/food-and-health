@@ -19,12 +19,15 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -40,12 +43,18 @@ import com.glucoplan.foodhealth.ui.meal.MealScreen
 import com.glucoplan.foodhealth.ui.products.ProductEditScreen
 import com.glucoplan.foodhealth.ui.products.ProductEditViewModel
 import com.glucoplan.foodhealth.ui.products.ProductsScreen
+import com.glucoplan.foodhealth.ui.scanner.ScannerScreen
 import com.glucoplan.foodhealth.ui.settings.ProfileEditScreen
 import com.glucoplan.foodhealth.ui.settings.ProfileEditViewModel
 import com.glucoplan.foodhealth.ui.settings.SettingsScreen
 
 private const val PRODUCTS_LIST = "products/list"
 private const val PRODUCT_EDIT_BASE = "products/edit"
+private const val SCANNER = "scanner"
+
+/** Ключ, под которым сканер кладёт код в savedStateHandle вызвавшего экрана. */
+private const val SCANNED_BARCODE = "scanned_barcode"
+
 private const val SETTINGS_MAIN = "settings/main"
 private const val PROFILE_EDIT_BASE = "settings/profile"
 
@@ -64,9 +73,12 @@ fun AppNavigation(settingsBadge: Boolean) {
     val backStack by navController.currentBackStackEntryAsState()
     val destination = backStack?.destination
 
+    // Сканер — на весь экран, без нижней панели
+    val fullScreen = destination?.route == SCANNER
+
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            if (!fullScreen) NavigationBar {
                 Tab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = destination?.hierarchy?.any { it.route == tab.route } == true,
@@ -96,19 +108,48 @@ fun AppNavigation(settingsBadge: Boolean) {
             composable(Tab.Meal.route) { MealScreen() }
             composable(Tab.History.route) { HistoryScreen() }
             navigation(startDestination = PRODUCTS_LIST, route = Tab.Products.route) {
-                composable(PRODUCTS_LIST) {
-                    ProductsScreen(onOpenProduct = { id ->
-                        navController.navigate(if (id == null) PRODUCT_EDIT_BASE else "$PRODUCT_EDIT_BASE?id=$id")
-                    })
+                composable(PRODUCTS_LIST) { entry ->
+                    val scanned by entry.scannedBarcode()
+                    ProductsScreen(
+                        onOpenProduct = { id ->
+                            navController.navigate(if (id == null) PRODUCT_EDIT_BASE else "$PRODUCT_EDIT_BASE?id=$id")
+                        },
+                        onNewProductWithBarcode = { code ->
+                            navController.navigate("$PRODUCT_EDIT_BASE?${ProductEditViewModel.ARG_BARCODE}=$code")
+                        },
+                        onScan = { navController.navigate(SCANNER) },
+                        scannedBarcode = scanned,
+                        onScannedHandled = { entry.savedStateHandle[SCANNED_BARCODE] = null },
+                    )
                 }
                 composable(
-                    route = "$PRODUCT_EDIT_BASE?${ProductEditViewModel.ARG_ID}={${ProductEditViewModel.ARG_ID}}",
-                    arguments = listOf(optionalIdArgument(ProductEditViewModel.ARG_ID)),
-                ) {
-                    ProductEditScreen(onDone = { navController.popBackStack() })
+                    route = "$PRODUCT_EDIT_BASE?" +
+                        "${ProductEditViewModel.ARG_ID}={${ProductEditViewModel.ARG_ID}}&" +
+                        "${ProductEditViewModel.ARG_BARCODE}={${ProductEditViewModel.ARG_BARCODE}}",
+                    arguments = listOf(
+                        optionalIdArgument(ProductEditViewModel.ARG_ID),
+                        optionalIdArgument(ProductEditViewModel.ARG_BARCODE),
+                    ),
+                ) { entry ->
+                    val scanned by entry.scannedBarcode()
+                    ProductEditScreen(
+                        onDone = { navController.popBackStack() },
+                        onScan = { navController.navigate(SCANNER) },
+                        scannedBarcode = scanned,
+                        onScannedHandled = { entry.savedStateHandle[SCANNED_BARCODE] = null },
+                    )
                 }
             }
             composable(Tab.Dishes.route) { DishesScreen() }
+            composable(SCANNER) {
+                ScannerScreen(
+                    onResult = { code ->
+                        navController.previousBackStackEntry?.savedStateHandle?.set(SCANNED_BARCODE, code)
+                        navController.popBackStack()
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
             navigation(startDestination = SETTINGS_MAIN, route = Tab.Settings.route) {
                 composable(SETTINGS_MAIN) {
                     SettingsScreen(onOpenProfile = { id ->
@@ -125,6 +166,11 @@ fun AppNavigation(settingsBadge: Boolean) {
         }
     }
 }
+
+/** Код, который вернул сканер этому экрану; после обработки сбрасывается в null. */
+@Composable
+private fun NavBackStackEntry.scannedBarcode(): State<String?> =
+    savedStateHandle.getStateFlow<String?>(SCANNED_BARCODE, null).collectAsStateWithLifecycle()
 
 /** Необязательный id в маршруте: нет id — создание новой записи. */
 private fun optionalIdArgument(name: String) = navArgument(name) {

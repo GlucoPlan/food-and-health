@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,9 +52,22 @@ import com.glucoplan.foodhealth.data.product.ProductSource
 /** Карточка продукта (ТЗ 4.3). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProductEditScreen(onDone: () -> Unit, viewModel: ProductEditViewModel = hiltViewModel()) {
+fun ProductEditScreen(
+    onDone: () -> Unit,
+    onScan: () -> Unit,
+    scannedBarcode: String?,
+    onScannedHandled: () -> Unit,
+    viewModel: ProductEditViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf(false) }
+
+    LaunchedEffect(scannedBarcode) {
+        if (scannedBarcode != null) {
+            viewModel.onScanned(scannedBarcode)
+            onScannedHandled()
+        }
+    }
 
     LaunchedEffect(state.done) { if (state.done) onDone() }
 
@@ -98,7 +112,14 @@ fun ProductEditScreen(onDone: () -> Unit, viewModel: ProductEditViewModel = hilt
             TextInput("Производитель", form.brand, null, capitalize = true) { v ->
                 edit("brand") { it.copy(brand = v) }
             }
-            TextInput("Штрихкод", form.barcode, errors[ProductField.BARCODE], keyboard = KeyboardType.Number) { v ->
+            TextInput(
+                "Штрихкод", form.barcode, errors[ProductField.BARCODE], keyboard = KeyboardType.Number,
+                trailing = {
+                    IconButton(onClick = onScan) {
+                        Icon(Icons.Filled.QrCodeScanner, contentDescription = "Сканировать штрихкод")
+                    }
+                },
+            ) { v ->
                 edit(ProductField.BARCODE) { it.copy(barcode = v) }
             }
 
@@ -259,12 +280,14 @@ private fun TextInput(
     error: String?,
     capitalize: Boolean = false,
     keyboard: KeyboardType = KeyboardType.Text,
+    trailing: (@Composable () -> Unit)? = null,
     onChange: (String) -> Unit,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
         label = { Text(label) },
+        trailingIcon = trailing,
         singleLine = true,
         isError = error != null,
         supportingText = error?.let { msg -> @Composable { Text(msg) } },

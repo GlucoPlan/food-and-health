@@ -113,4 +113,14 @@ class ProductRepositoryTest {
         assertThat(repo.get(id)?.name).isEqualTo("Молоко")
         assertThat(db.productDao().getById(id)?.deleted).isTrue()
     }
+
+    @Test
+    fun `поиск по штрихкоду находит только неудалённый продукт`() = runTest {
+        repo.save(null, milk.copy(barcode = "4600001"))
+        assertThat(repo.findByBarcode("4600001")?.name).isEqualTo("Молоко")
+        assertThat(repo.findByBarcode("4600002")).isNull()
+
+        repo.delete(onlyId())
+        assertThat(repo.findByBarcode("4600001")).isNull()
+    }
 }

@@ -21,6 +21,10 @@ class ProductRepository @Inject constructor(
     /** Продукт по id, в том числе удалённый: на него могут ссылаться прошлые приёмы пищи. */
     suspend fun get(id: String): Product? = dao.getById(id)?.toProduct()
 
+    /** Неудалённый продукт с таким штрихкодом, если есть. */
+    suspend fun findByBarcode(barcode: String): Product? =
+        dao.findActiveByBarcode(barcode).firstOrNull()?.toProduct()
+
     /** Создаёт ([id] = null) или сохраняет продукт. При ошибках ничего не пишет. */
     suspend fun save(id: String?, form: ProductForm): ProductValidation {
         val productId = id ?: UUID.randomUUID().toString()

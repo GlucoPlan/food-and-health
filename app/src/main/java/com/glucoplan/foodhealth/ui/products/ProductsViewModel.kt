@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ProductListQuery(
@@ -31,7 +32,7 @@ data class ProductListState(
 
 @HiltViewModel
 class ProductsViewModel @Inject constructor(
-    repository: ProductRepository,
+    private val repository: ProductRepository,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow(ProductListQuery())
@@ -45,6 +46,26 @@ class ProductsViewModel @Inject constructor(
                 baseEmpty = all.isEmpty(),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProductListState())
+
+    private val _createWithBarcode = MutableStateFlow<String?>(null)
+
+    /** Отсканирован неизвестный код — экран открывает новый продукт с этим кодом. */
+    val createWithBarcode: StateFlow<String?> = _createWithBarcode.asStateFlow()
+
+    /** Код со сканера: известный продукт показывается в списке, неизвестный — создаётся. */
+    fun onScanned(barcode: String) {
+        viewModelScope.launch {
+            if (repository.findByBarcode(barcode) != null) {
+                _query.update { it.copy(text = barcode) }
+            } else {
+                _createWithBarcode.value = barcode
+            }
+        }
+    }
+
+    fun onCreateWithBarcodeHandled() {
+        _createWithBarcode.value = null
+    }
 
     fun onQueryChange(text: String) = _query.update { it.copy(text = text) }
 

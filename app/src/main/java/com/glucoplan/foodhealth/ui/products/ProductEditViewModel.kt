@@ -3,6 +3,7 @@ package com.glucoplan.foodhealth.ui.products
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.glucoplan.foodhealth.data.product.ProductField
 import com.glucoplan.foodhealth.data.product.ProductForm
 import com.glucoplan.foodhealth.data.product.ProductRepository
 import com.glucoplan.foodhealth.data.product.ProductValidation
@@ -33,7 +34,14 @@ class ProductEditViewModel @Inject constructor(
 
     private val id: String? = savedStateHandle.get<String>(ARG_ID)
 
-    private val _state = MutableStateFlow(ProductEditState(isNew = id == null, loaded = id == null))
+    private val _state = MutableStateFlow(
+        ProductEditState(
+            isNew = id == null,
+            loaded = id == null,
+            // Новый продукт после сканирования неизвестного кода
+            form = ProductForm(barcode = savedStateHandle.get<String>(ARG_BARCODE).orEmpty()),
+        )
+    )
     val state: StateFlow<ProductEditState> = _state.asStateFlow()
 
     init {
@@ -54,6 +62,8 @@ class ProductEditViewModel @Inject constructor(
     fun edit(field: String, change: (ProductForm) -> ProductForm) = _state.update {
         it.copy(form = change(it.form), errors = it.errors - field - MACROS_KEY)
     }
+
+    fun onScanned(barcode: String) = edit(ProductField.BARCODE) { it.copy(barcode = barcode) }
 
     fun toggleMicro() = _state.update { it.copy(microExpanded = !it.microExpanded) }
 
@@ -81,6 +91,7 @@ class ProductEditViewModel @Inject constructor(
 
     companion object {
         const val ARG_ID = "id"
+        const val ARG_BARCODE = "barcode"
         private const val MACROS_KEY = "macros"
     }
 }

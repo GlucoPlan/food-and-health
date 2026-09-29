@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -32,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,10 +47,28 @@ import com.glucoplan.foodhealth.data.product.ProductSort
 @Composable
 fun ProductsScreen(
     onOpenProduct: (id: String?) -> Unit,
+    onNewProductWithBarcode: (barcode: String) -> Unit,
+    onScan: () -> Unit,
+    scannedBarcode: String?,
+    onScannedHandled: () -> Unit,
     viewModel: ProductsViewModel = hiltViewModel(),
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val createWithBarcode by viewModel.createWithBarcode.collectAsStateWithLifecycle()
+
+    LaunchedEffect(scannedBarcode) {
+        if (scannedBarcode != null) {
+            viewModel.onScanned(scannedBarcode)
+            onScannedHandled()
+        }
+    }
+    LaunchedEffect(createWithBarcode) {
+        createWithBarcode?.let {
+            viewModel.onCreateWithBarcodeHandled()
+            onNewProductWithBarcode(it)
+        }
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -66,9 +86,14 @@ fun ProductsScreen(
                 placeholder = { Text("Название или штрихкод") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
-                    if (query.text.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.onQueryChange("") }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Очистить")
+                    Row {
+                        if (query.text.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onQueryChange("") }) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Очистить")
+                            }
+                        }
+                        IconButton(onClick = onScan) {
+                            Icon(Icons.Filled.QrCodeScanner, contentDescription = "Сканировать штрихкод")
                         }
                     }
                 },

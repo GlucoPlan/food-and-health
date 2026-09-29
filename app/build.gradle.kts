@@ -37,6 +37,12 @@ android {
         // Репозиторий, где лежат релизы (проверка обновлений)
         buildConfigField("String", "GITHUB_REPO", "\"GlucoPlan/food-and-health\"")
 
+        // Только ARM: на них работают телефоны. Модель ML Kit для x86 лишь раздула бы APK,
+        // который скачивается при каждом обновлении
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -116,6 +122,12 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
+
+    // Сканер штрихкода: камера и распознавание без интернета (модель внутри APK)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
