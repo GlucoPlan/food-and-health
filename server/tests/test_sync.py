@@ -144,3 +144,9 @@ def test_данные_переживают_перезапуск(settings):
     sync(first, "A", changes=[change("p1")])
     second = TestClient(main.create_app(settings), headers={"X-Family-Key": KEY})
     assert [c["id"] for c in sync(second, "B")["changes"]] == ["p1"]
+
+
+@pytest.mark.parametrize("table", ["height", "weight", "blood_pressure", "sleep", "water", "body_measure"])
+def test_таблицы_замеров_этапа_2_принимаются(client, table):
+    sync(client, "A", changes=[change("m1", table=table)])
+    assert [c["table"] for c in sync(client, "B")["changes"]] == [table]

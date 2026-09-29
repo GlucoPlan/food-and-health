@@ -14,6 +14,8 @@ from typing import Iterator
 # Таблицы, которые синхронизируются (ТЗ 5.2). Новая таблица на телефоне = одна строка здесь.
 TABLES = frozenset({
     "profile", "product", "pan", "dish", "dish_version", "dish_ingredient", "meal", "meal_item",
+    # Этап 2: замеры (SPEC.md, раздел 15) — все сразу, чтобы сервер обновлялся один раз
+    "height", "weight", "blood_pressure", "sleep", "water", "body_measure",
 })
 
 SCHEMA = """
