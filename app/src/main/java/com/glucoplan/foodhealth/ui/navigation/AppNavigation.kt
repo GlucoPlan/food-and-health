@@ -41,6 +41,8 @@ import com.glucoplan.foodhealth.ui.dishes.DishEditScreen
 import com.glucoplan.foodhealth.ui.dishes.DishEditViewModel
 import com.glucoplan.foodhealth.ui.dishes.DishesScreen
 import com.glucoplan.foodhealth.ui.history.HistoryScreen
+import com.glucoplan.foodhealth.ui.history.MealEditScreen
+import com.glucoplan.foodhealth.ui.history.MealEditViewModel
 import com.glucoplan.foodhealth.ui.meal.MealScreen
 import com.glucoplan.foodhealth.ui.pans.PanEditScreen
 import com.glucoplan.foodhealth.ui.pans.PanEditViewModel
@@ -63,6 +65,9 @@ private const val SCANNER = "scanner"
 
 /** Ключ, под которым сканер кладёт код в savedStateHandle вызвавшего экрана. */
 private const val SCANNED_BARCODE = "scanned_barcode"
+
+private const val HISTORY_LIST = "history/list"
+private const val HISTORY_MEAL_BASE = "history/meal"
 
 private const val DISHES_LIST = "dishes/list"
 private const val DISH_EDIT_BASE = "dishes/edit"
@@ -130,33 +135,51 @@ fun AppNavigation(settingsBadge: Boolean) {
             modifier = Modifier.padding(padding),
         ) {
             composable(Tab.Meal.route) { entry ->
-                val picked by entry.savedStateHandle.getStateFlow<String?>(PICKED_ITEM, null)
-                    .collectAsStateWithLifecycle()
-                val scanned by entry.scannedBarcode()
-                val created by entry.savedStateHandle.getStateFlow<String?>(CREATED_PRODUCT_ID, null)
-                    .collectAsStateWithLifecycle()
+                val results = entry.mealResults()
                 MealScreen(
-                    onAdd = { profileId ->
-                        navController.navigate(
-                            "$PICKER?${ProductPickerViewModel.ARG_MODE}=${ProductPickerViewModel.MODE_MEAL}" +
-                                (profileId?.let { "&${ProductPickerViewModel.ARG_PROFILE}=$it" } ?: "")
-                        )
-                    },
+                    onAdd = { profileId -> navController.navigate(mealPickerRoute(profileId)) },
                     onScan = { navController.navigate(SCANNER) },
                     onCreateProduct = { code ->
                         navController.navigate("$PRODUCT_EDIT_BASE?${ProductEditViewModel.ARG_BARCODE}=$code")
                     },
-                    picked = picked?.let(PickedItem::decode),
-                    scannedBarcode = scanned,
-                    createdProductId = created,
-                    onResultsHandled = {
-                        entry.savedStateHandle[PICKED_ITEM] = null
-                        entry.savedStateHandle[SCANNED_BARCODE] = null
-                        entry.savedStateHandle[CREATED_PRODUCT_ID] = null
-                    },
+                    picked = results.picked,
+                    scannedBarcode = results.scanned,
+                    createdProductId = results.created,
+                    onResultsHandled = results.clear,
                 )
             }
-            composable(Tab.History.route) { HistoryScreen() }
+            navigation(startDestination = HISTORY_LIST, route = Tab.History.route) {
+                composable(HISTORY_LIST) {
+                    HistoryScreen(onOpenMeal = { id -> navController.navigate("$HISTORY_MEAL_BASE?id=$id") })
+                }
+                composable(
+                    route = "$HISTORY_MEAL_BASE?${MealEditViewModel.ARG_ID}={${MealEditViewModel.ARG_ID}}",
+                    arguments = listOf(optionalIdArgument(MealEditViewModel.ARG_ID)),
+                ) { entry ->
+                    val results = entry.mealResults()
+                    MealEditScreen(
+                        onClose = { navController.popBackStack() },
+                        onRepeated = {
+                            // Закрыть приём, чтобы при возврате в историю был список, и открыть «Приём пищи»
+                            navController.popBackStack()
+                            navController.navigate(Tab.Meal.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onAdd = { profileId -> navController.navigate(mealPickerRoute(profileId)) },
+                        onScan = { navController.navigate(SCANNER) },
+                        onCreateProduct = { code ->
+                            navController.navigate("$PRODUCT_EDIT_BASE?${ProductEditViewModel.ARG_BARCODE}=$code")
+                        },
+                        picked = results.picked,
+                        scannedBarcode = results.scanned,
+                        createdProductId = results.created,
+                        onResultsHandled = results.clear,
+                    )
+                }
+            }
             navigation(startDestination = PRODUCTS_LIST, route = Tab.Products.route) {
                 composable(PRODUCTS_LIST) { entry ->
                     val scanned by entry.scannedBarcode()
@@ -293,6 +316,26 @@ fun AppNavigation(settingsBadge: Boolean) {
         }
     }
 }
+
+/** Результаты выбора, сканера и создания продукта для экрана приёма. */
+private class MealResults(val picked: PickedItem?, val scanned: String?, val created: String?, val clear: () -> Unit)
+
+@Composable
+private fun NavBackStackEntry.mealResults(): MealResults {
+    val picked by savedStateHandle.getStateFlow<String?>(PICKED_ITEM, null).collectAsStateWithLifecycle()
+    val scanned by scannedBarcode()
+    val created by savedStateHandle.getStateFlow<String?>(CREATED_PRODUCT_ID, null).collectAsStateWithLifecycle()
+    return MealResults(picked?.let(PickedItem::decode), scanned, created) {
+        savedStateHandle[PICKED_ITEM] = null
+        savedStateHandle[SCANNED_BARCODE] = null
+        savedStateHandle[CREATED_PRODUCT_ID] = null
+    }
+}
+
+/** Выбор для приёма пищи: продукты и блюда, недавние этого профиля. */
+private fun mealPickerRoute(profileId: String?) =
+    "$PICKER?${ProductPickerViewModel.ARG_MODE}=${ProductPickerViewModel.MODE_MEAL}" +
+        (profileId?.let { "&${ProductPickerViewModel.ARG_PROFILE}=$it" } ?: "")
 
 /** Код, который вернул сканер этому экрану; после обработки сбрасывается в null. */
 @Composable

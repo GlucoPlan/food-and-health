@@ -4,8 +4,16 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import com.glucoplan.foodhealth.di.ApplicationScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -62,14 +70,46 @@ object MealDraftJson {
     }
 }
 
-/** Черновик приёма в DataStore: один на телефон. */
+/**
+ * Черновик приёма: один на телефон, общий для экрана «Приём пищи» и «Повторить» из истории.
+ * Держится в памяти и каждое изменение сразу пишется в DataStore (ТЗ 4.1).
+ */
 @Singleton
-class MealDraftStore @Inject constructor(private val prefs: DataStore<Preferences>) {
+class MealDraftStore @Inject constructor(
+    private val prefs: DataStore<Preferences>,
+    @ApplicationScope scope: CoroutineScope,
+) {
+    private val _draft = MutableStateFlow<MealDraft?>(null)
 
-    val draft: Flow<MealDraft> = prefs.data.map { MealDraftJson.decode(it[KEY]) }
+    /** null — ещё читается из DataStore. */
+    val draft: StateFlow<MealDraft?> = _draft.asStateFlow()
 
-    suspend fun save(draft: MealDraft) {
-        prefs.edit { if (draft.isEmpty) it.remove(KEY) else it[KEY] = MealDraftJson.encode(draft) }
+    private val _notice = MutableStateFlow<String?>(null)
+
+    /** Сообщение для экрана приёма, например о пропущенном при «Повторить». */
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+
+    init {
+        scope.launch {
+            _draft.value = MealDraftJson.decode(prefs.data.first()[KEY])
+            _draft.filterNotNull().drop(1).collect { draft ->
+                prefs.edit { if (draft.isEmpty) it.remove(KEY) else it[KEY] = MealDraftJson.encode(draft) }
+            }
+        }
+    }
+
+    /** Изменить черновик; до загрузки из DataStore изменения не принимаются. */
+    fun update(change: (MealDraft) -> MealDraft) {
+        _draft.update { it?.let(change) }
+    }
+
+    fun replace(draft: MealDraft, notice: String? = null) {
+        _draft.value = draft
+        _notice.value = notice
+    }
+
+    fun onNoticeShown() {
+        _notice.value = null
     }
 
     private companion object {

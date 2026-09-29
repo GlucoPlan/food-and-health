@@ -20,6 +20,20 @@ interface MealDao {
     @Query("SELECT * FROM meal_item WHERE meal_id = :mealId AND deleted = 0")
     suspend fun itemsOf(mealId: String): List<MealItemEntity>
 
+    /** Вместе с удалёнными позициями — правка ничего не стирает физически (ТЗ 5.1). */
+    @Query("SELECT * FROM meal_item WHERE meal_id = :mealId")
+    suspend fun allItemsOf(mealId: String): List<MealItemEntity>
+
+    /** История профиля (ТЗ 4.2), новые сверху. */
+    @Query("SELECT * FROM meal WHERE profile_id = :profileId AND deleted = 0 ORDER BY eaten_at DESC")
+    fun observeMealsOf(profileId: String): Flow<List<MealEntity>>
+
+    @Query(
+        "SELECT i.* FROM meal_item i JOIN meal m ON m.id = i.meal_id " +
+            "WHERE m.profile_id = :profileId AND m.deleted = 0 AND i.deleted = 0"
+    )
+    fun observeItemsOf(profileId: String): Flow<List<MealItemEntity>>
+
     /** ТЗ 5.4: варка, записанная хотя бы в один приём, не редактируется. */
     @Query(
         "SELECT EXISTS(SELECT 1 FROM meal_item i JOIN meal m ON m.id = i.meal_id " +
