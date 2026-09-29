@@ -4,9 +4,11 @@ name: Build & Release APK
 on:
   push:
     branches: [ main ]
-    # Правки только сервера APK не меняют — релиз не нужен
+    # Правки только сервера и документов APK не меняют — релиз не нужен
     paths-ignore:
       - 'server/**'
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 permissions:
