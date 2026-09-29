@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily backup of food and health server
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Если сервер был выключен в 03:30 — сделать копию после включения
+Persistent=true
+
+[Install]
+WantedBy=timers.target

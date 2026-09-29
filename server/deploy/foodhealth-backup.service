@@ -1,0 +1,9 @@
+# Шаблон: install.sh подставляет пути. Запускается таймером foodhealth-backup.timer.
+[Unit]
+Description=Food and health server backup
+
+[Service]
+Type=oneshot
+EnvironmentFile=@ENV_FILE@
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/venv/bin/python -m app.backup --backups-dir @BACKUPS_DIR@ backup --keep 30

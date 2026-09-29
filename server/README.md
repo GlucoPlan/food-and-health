@@ -24,10 +24,57 @@ photos/     фото кастрюль, <id>.jpg
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest
+.venv/bin/shellcheck -x deploy/*.sh
 FH_FAMILY_KEY=... FH_DATA_DIR=... .venv/bin/uvicorn --factory app.main:create_app --host 127.0.0.1 --port 8765
 ```
 
-Установка на сервер (systemd, HTTPS через Caddy, резервные копии) — этап 1б-2.
+## Установка и обновление
+
+Из клона репозитория, один раз ввести пароль sudo:
+
+```
+git pull
+sudo bash server/deploy/install.sh 51434.koara.live
+```
+
+Скрипт ставит Python-окружение и Caddy, заводит пользователя `foodhealth`, systemd-сервис, HTTPS
+(сертификат Let's Encrypt выпускает и продлевает Caddy), открывает 80/443 в ufw и включает ежедневные
+резервные копии. При первой установке создаёт и показывает ключ семьи. Повторный запуск — это обновление:
+код и зависимости обновляются, ключ и данные не меняются.
+
+| Что            | Где                               |
+|----------------|-----------------------------------|
+| код и venv     | `/opt/foodhealth`                 |
+| данные         | `/var/lib/foodhealth`             |
+| ключ семьи     | `/etc/foodhealth/env` (`sudo cat`)|
+| копии          | `/var/backups/foodhealth`         |
+| журнал         | `journalctl -u foodhealth`        |
+
+## Резервные копии
+
+Каждый день в 03:30 (таймер `foodhealth-backup.timer`), хранятся 30 последних. База — согласованная копия
+SQLite (сжата), фото — жёсткие ссылки на предыдущую копию, если не менялись.
+
+```
+sudo bash server/deploy/backup-now.sh                                   # копия прямо сейчас
+sudo bash server/deploy/restore.sh /var/backups/foodhealth/2026-09-29_033000   # откат на копию
+```
+
+Перед восстановлением текущие данные сохраняются отдельной копией.
+
+## Переезд на другой сервер
+
+На старом:
+```
+sudo bash server/deploy/export.sh          # foodhealth-export-ДАТА.tar.gz: данные + ключ семьи
+```
+На новом (после клонирования репозитория и переноса архива):
+```
+sudo bash server/deploy/install.sh НОВЫЙ-ДОМЕН
+sudo bash server/deploy/restore.sh foodhealth-export-ДАТА.tar.gz
+```
+Ключ семьи переезжает вместе с данными, поэтому телефоны перенастраивать не нужно, кроме случая,
+когда меняется адрес. Архив содержит ключ — храните его аккуратно.
 
 ## Протокол
 

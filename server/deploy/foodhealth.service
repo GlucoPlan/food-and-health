@@ -1,0 +1,24 @@
+# Шаблон: install.sh подставляет пути и копирует в /etc/systemd/system/
+[Unit]
+Description=Food and health server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=@USER@
+Group=@USER@
+EnvironmentFile=@ENV_FILE@
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/venv/bin/uvicorn --factory app.main:create_app --host 127.0.0.1 --port @PORT@ --proxy-headers
+Restart=always
+RestartSec=3
+# Памяти на сервере мало: не мешаем остальным сервисам
+MemoryMax=200M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=@DATA_DIR@
+
+[Install]
+WantedBy=multi-user.target
