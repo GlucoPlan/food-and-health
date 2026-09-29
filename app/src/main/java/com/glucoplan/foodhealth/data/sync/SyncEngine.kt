@@ -137,7 +137,7 @@ class SyncEngine @Inject constructor(
         db.runInTransaction {
             val sql = raw()
             batch.versions.forEach { (key, version) ->
-                sql.execSQL("DELETE FROM sync_outbox WHERE tbl = ? AND id = ? AND version = ?", arrayOf(key.first, key.second, version))
+                sql.execSQL("DELETE FROM sync_outbox WHERE tbl = ? AND id = ? AND version = ?", arrayOf<Any>(key.first, key.second, version))
             }
             sql.execSQL("UPDATE sync_state SET applying = 1 WHERE id = 1")
             try {

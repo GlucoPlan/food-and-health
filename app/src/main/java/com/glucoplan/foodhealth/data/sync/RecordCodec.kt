@@ -70,7 +70,7 @@ class RecordCodec(private val db: SupportSQLiteDatabase) {
         val result = mutableMapOf<String, Map<String, JsonElement>>()
         ids.chunked(500).forEach { chunk ->
             val marks = chunk.joinToString(",") { "?" }
-            db.query("SELECT id, json FROM sync_extra WHERE tbl = ? AND id IN ($marks)", arrayOf<Any>(table) + chunk)
+            db.query("SELECT id, json FROM sync_extra WHERE tbl = ? AND id IN ($marks)", (listOf(table) + chunk).toTypedArray())
                 .use { c ->
                     while (c.moveToNext()) {
                         runCatching { Json.parseToJsonElement(c.getString(1)).jsonObject }
