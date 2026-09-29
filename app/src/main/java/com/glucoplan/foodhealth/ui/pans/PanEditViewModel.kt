@@ -69,7 +69,9 @@ class PanEditViewModel @Inject constructor(
                 sessionPhotos += name
                 _state.update { it.copy(photoBusy = false, form = it.form.copy(photo = name)) }
             } catch (e: Exception) {
-                _state.update { it.copy(photoBusy = false, photoError = "Не удалось сохранить фото") }
+                _state.update {
+                    it.copy(photoBusy = false, photoError = "Не удалось сохранить фото: ${e.message ?: e.javaClass.simpleName}")
+                }
             }
         }
     }

@@ -25,7 +25,6 @@ import kotlin.math.max
 class PanPhotos @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    private val dir get() = directory(context).apply { mkdirs() }
     private val cameraDir get() = File(context.cacheDir, "camera").apply { mkdirs() }
 
     fun file(name: String): File = file(context, name)
@@ -81,6 +80,7 @@ class PanPhotos @Inject constructor(
         val result = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
 
         val name = "${UUID.randomUUID()}.jpg"
+        directory(context).mkdirs()
         file(name).outputStream().use { result.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }
         if (result !== decoded) result.recycle()
         decoded.recycle()
