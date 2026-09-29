@@ -87,11 +87,29 @@ fun SettingsScreen(
                 modifier = Modifier.clickable(onClick = onOpenPans),
             )
         }
+        val preUpdateSyncing by viewModel.preUpdateSyncing.collectAsStateWithLifecycle()
+        val preUpdateWarn by viewModel.preUpdateWarn.collectAsStateWithLifecycle()
         UpdateCard(
             state = update,
             onUpdate = viewModel::startUpdate,
             onCheck = viewModel::checkNow,
+            preUpdateSyncing = preUpdateSyncing,
         )
+        preUpdateWarn?.let { warn ->
+            AlertDialog(
+                onDismissRequest = viewModel::cancelUpdate,
+                title = { Text("Обновить без синхронизации?") },
+                text = {
+                    Text(
+                        "На телефоне есть неотправленные данные (изменений: ${warn.pending}), " +
+                            "а синхронизация не удалась: ${warn.reason}.\n\nОбновление их не удалит, " +
+                            "но если с ним что-то пойдёт не так, их может не оказаться на сервере. Всё равно обновить?"
+                    )
+                },
+                confirmButton = { TextButton(onClick = viewModel::updateAnyway) { Text("Обновить") } },
+                dismissButton = { TextButton(onClick = viewModel::cancelUpdate) { Text("Отмена") } },
+            )
+        }
     }
 }
 
@@ -304,7 +322,7 @@ private fun profileSummary(profile: Profile): String? = listOfNotNull(
 
 /** Блок «Обновление» (ТЗ 8.2). */
 @Composable
-private fun UpdateCard(state: UpdateState, onUpdate: () -> Unit, onCheck: () -> Unit) {
+private fun UpdateCard(state: UpdateState, onUpdate: () -> Unit, onCheck: () -> Unit, preUpdateSyncing: Boolean) {
     val download = state.download
     val downloading = download is DownloadState.Downloading
 
@@ -343,6 +361,11 @@ private fun UpdateCard(state: UpdateState, onUpdate: () -> Unit, onCheck: () -> 
                 Text(state.latest.notes, style = MaterialTheme.typography.bodyMedium)
             }
 
+            if (preUpdateSyncing) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text("Синхронизация перед обновлением…", style = MaterialTheme.typography.bodySmall)
+            }
+
             when (download) {
                 is DownloadState.Downloading -> {
                     val progress = download.progress
@@ -370,7 +393,7 @@ private fun UpdateCard(state: UpdateState, onUpdate: () -> Unit, onCheck: () -> 
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(onClick = onUpdate, enabled = state.updateAvailable && !downloading) {
+                Button(onClick = onUpdate, enabled = state.updateAvailable && !downloading && !preUpdateSyncing) {
                     Text("Обновить")
                 }
                 OutlinedButton(onClick = onCheck, enabled = !state.checking && !downloading) {

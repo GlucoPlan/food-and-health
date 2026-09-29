@@ -2,6 +2,7 @@ package com.glucoplan.foodhealth.data.prefs
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +24,13 @@ class DevicePrefs @Inject constructor(
         prefs.edit { it[KEY_OWNER] = profileId }
     }
 
+    /** Первый запуск пройден: к серверу подключились или выбрали «работать без сервера» (ТЗ 6.1). */
+    val setupDone: Flow<Boolean> = prefs.data.map { it[KEY_SETUP_DONE] == true }
+
+    suspend fun setSetupDone() {
+        prefs.edit { it[KEY_SETUP_DONE] = true }
+    }
+
     /** Идентификатор телефона для поля device_id (ТЗ 5.1). Создаётся при первом обращении. */
     suspend fun deviceId(): String {
         prefs.data.first()[KEY_DEVICE_ID]?.let { return it }
@@ -36,5 +44,6 @@ class DevicePrefs @Inject constructor(
     private companion object {
         val KEY_OWNER = stringPreferencesKey("owner_profile_id")
         val KEY_DEVICE_ID = stringPreferencesKey("device_id")
+        val KEY_SETUP_DONE = booleanPreferencesKey("setup_done")
     }
 }

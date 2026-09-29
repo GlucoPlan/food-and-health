@@ -7,6 +7,8 @@ import com.glucoplan.foodhealth.data.profile.Profile
 import com.glucoplan.foodhealth.data.profile.ProfileRepository
 import com.glucoplan.foodhealth.data.db.SyncDao
 import com.glucoplan.foodhealth.data.sync.FirstSyncChoice
+import com.glucoplan.foodhealth.data.sync.PreUpdateResult
+import com.glucoplan.foodhealth.data.sync.PreUpdateSync
 import com.glucoplan.foodhealth.data.sync.ServerConfig
 import com.glucoplan.foodhealth.data.sync.SyncBackend
 import com.glucoplan.foodhealth.data.sync.SyncEngine
@@ -46,7 +48,18 @@ class SettingsViewModel @Inject constructor(
     private val syncEngine: SyncEngine,
     private val backend: SyncBackend,
     syncDao: SyncDao,
+    private val preUpdateSync: PreUpdateSync,
 ) : ViewModel() {
+
+    private val _preUpdateSyncing = MutableStateFlow(false)
+
+    /** ТЗ 8.2: идёт синхронизация перед обновлением. */
+    val preUpdateSyncing: StateFlow<Boolean> = _preUpdateSyncing.asStateFlow()
+
+    private val _preUpdateWarn = MutableStateFlow<PreUpdateResult.Warn?>(null)
+
+    /** Синхронизация перед обновлением не удалась — спросить, обновлять ли всё равно. */
+    val preUpdateWarn: StateFlow<PreUpdateResult.Warn?> = _preUpdateWarn.asStateFlow()
 
     private val _server = MutableStateFlow(ServerUi())
     val server: StateFlow<ServerUi> = _server.asStateFlow()
@@ -128,5 +141,26 @@ class SettingsViewModel @Inject constructor(
 
     fun checkNow() = updates.checkNow()
 
-    fun startUpdate() = updates.startUpdate()
+    /** «Обновить» (ТЗ 8.2): сначала синхронизация, при неудаче — предупреждение. */
+    fun startUpdate() {
+        if (_preUpdateSyncing.value) return
+        _preUpdateSyncing.value = true
+        viewModelScope.launch {
+            val result = preUpdateSync.run()
+            _preUpdateSyncing.value = false
+            when (result) {
+                PreUpdateResult.Proceed -> updates.startUpdate()
+                is PreUpdateResult.Warn -> _preUpdateWarn.value = result
+            }
+        }
+    }
+
+    fun updateAnyway() {
+        _preUpdateWarn.value = null
+        updates.startUpdate()
+    }
+
+    fun cancelUpdate() {
+        _preUpdateWarn.value = null
+    }
 }

@@ -26,6 +26,9 @@ enum class FirstSyncChoice {
     REPLACE,
 }
 
+/** Ход загрузки: сколько записей получено и сколько всего на сервере (если известно). */
+data class SyncProgress(val received: Int, val total: Int?)
+
 sealed interface SyncResult {
     data class Success(val sent: Int, val received: Int) : SyncResult
     data object NotConfigured : SyncResult
@@ -52,15 +55,29 @@ class SyncEngine @Inject constructor(
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running.asStateFlow()
 
+    private val _progress = MutableStateFlow<SyncProgress?>(null)
+
+    /** Для экрана «Загрузка данных» (ТЗ 6.1, п. 3); null — синхронизация не идёт. */
+    val progress: StateFlow<SyncProgress?> = _progress.asStateFlow()
+
     /** Сколько изменений отправлять одним запросом (сервер принимает до 5000). */
     internal var batchSize = 500
 
-    suspend fun sync(choice: FirstSyncChoice? = null, now: () -> Long = System::currentTimeMillis): SyncResult =
+    /**
+     * [withPhotos] = false — только записи: экран загрузки не ждёт фото,
+     * они догрузятся следующей синхронизацией в фоне (ТЗ 6.1, п. 3).
+     */
+    suspend fun sync(
+        choice: FirstSyncChoice? = null,
+        withPhotos: Boolean = true,
+        now: () -> Long = System::currentTimeMillis,
+    ): SyncResult =
         mutex.withLock {
             val config = settings.currentConfig() ?: return SyncResult.NotConfigured
             _running.value = true
+            _progress.value = SyncProgress(0, null)
             try {
-                val result = run(config, choice)
+                val result = run(config, choice, withPhotos)
                 if (result is SyncResult.Success) settings.markSuccess(now())
                 result
             } catch (e: SyncException) {
@@ -68,13 +85,19 @@ class SyncEngine @Inject constructor(
                 SyncResult.Failed(e.message ?: "Ошибка синхронизации")
             } finally {
                 _running.value = false
+                _progress.value = null
             }
         }
 
-    private suspend fun run(config: ServerConfig, choice: FirstSyncChoice?): SyncResult {
+    private suspend fun run(config: ServerConfig, choice: FirstSyncChoice?, withPhotos: Boolean): SyncResult {
+        var total: Int? = null
         if (!state().initialized) {
             val serverRecords = backend.health(config)
-            if (serverRecords > 0 && localHasData()) {
+            total = serverRecords
+            _progress.value = SyncProgress(0, total)
+            // «Свои данные» — неотправленные записи. Полученное с сервера (например, при оборванной
+            // загрузке) в очередь не попадает, поэтому продолжение загрузки вопроса не вызывает.
+            if (serverRecords > 0 && hasUnsentData()) {
                 when (choice) {
                     null -> return SyncResult.NeedsChoice(serverRecords)
                     FirstSyncChoice.REPLACE -> clearLocal()
@@ -93,13 +116,14 @@ class SyncEngine @Inject constructor(
             val response = backend.sync(config, SyncRequest(deviceId, state().cursor, batch.changes))
             received += withContext(Dispatchers.IO) { applyResponse(batch, response) }
             sent += batch.changes.size
+            _progress.value = SyncProgress(received, total)
             // Сервер отдал всё, а очередь ушла не полной порцией — значит, и её больше нет.
             // Правки, сделанные во время запроса, уйдут следующей синхронизацией.
             if (!response.hasMore && batch.versions.size < batchSize) break
         }
         markInitialized()
         // Фото — после записей: так ссылки на них уже есть у всех
-        photos.run(config)
+        if (withPhotos) photos.run(config)
         return SyncResult.Success(sent, received)
     }
 
@@ -184,8 +208,9 @@ class SyncEngine @Inject constructor(
         raw().execSQL("UPDATE sync_state SET initialized = 1 WHERE id = 1")
     }
 
-    private suspend fun localHasData(): Boolean = withContext(Dispatchers.IO) {
-        SyncTables.ALL.any { table -> raw().query("SELECT EXISTS(SELECT 1 FROM `$table`)").use { c -> c.moveToFirst(); c.getInt(0) == 1 } }
+    /** На телефоне есть записи, которых нет на сервере (всё накопленное до подключения — в очереди). */
+    private suspend fun hasUnsentData(): Boolean = withContext(Dispatchers.IO) {
+        raw().query("SELECT EXISTS(SELECT 1 FROM sync_outbox)").use { c -> c.moveToFirst(); c.getInt(0) == 1 }
     }
 
     private fun raw(): SupportSQLiteDatabase = db.openHelper.writableDatabase

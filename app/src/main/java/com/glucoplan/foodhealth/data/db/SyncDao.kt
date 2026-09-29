@@ -16,4 +16,8 @@ interface SyncDao {
 
     @Query("SELECT * FROM sync_state WHERE id = 1")
     suspend fun state(): SyncStateEntity?
+
+    /** Первая синхронизация (полная загрузка) завершена; null — строки ещё нет. */
+    @Query("SELECT initialized FROM sync_state WHERE id = 1")
+    fun observeInitialized(): Flow<Boolean?>
 }

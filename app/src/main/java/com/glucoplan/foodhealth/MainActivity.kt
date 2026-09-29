@@ -16,6 +16,8 @@ import com.glucoplan.foodhealth.data.sync.SyncScheduler
 import com.glucoplan.foodhealth.ui.navigation.AppNavigation
 import com.glucoplan.foodhealth.ui.navigation.RootState
 import com.glucoplan.foodhealth.ui.navigation.RootViewModel
+import com.glucoplan.foodhealth.ui.onboarding.ConnectScreen
+import com.glucoplan.foodhealth.ui.onboarding.DownloadScreen
 import com.glucoplan.foodhealth.ui.onboarding.OwnerSelectScreen
 import com.glucoplan.foodhealth.ui.theme.FoodHealthTheme
 import com.glucoplan.foodhealth.update.UpdateRepository
@@ -44,6 +46,8 @@ class MainActivity : ComponentActivity() {
                 val root by rootViewModel.state.collectAsStateWithLifecycle()
                 when (root) {
                     RootState.Loading -> Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                    RootState.Connect -> ConnectScreen()
+                    RootState.Download -> DownloadScreen()
                     RootState.NeedsOwner -> OwnerSelectScreen()
                     RootState.Ready -> {
                         val update by updateRepository.state.collectAsStateWithLifecycle()
