@@ -2,8 +2,10 @@ package com.glucoplan.foodhealth.di
 
 import android.content.Context
 import androidx.room.Room
+import com.glucoplan.foodhealth.data.db.ALL_MIGRATIONS
 import com.glucoplan.foodhealth.data.db.AppDatabase
 import com.glucoplan.foodhealth.data.db.DatabaseGuard
+import com.glucoplan.foodhealth.data.db.ProductDao
 import com.glucoplan.foodhealth.data.db.ProfileDao
 import dagger.Module
 import dagger.Provides
@@ -21,6 +23,7 @@ object DatabaseModule {
     fun provideDatabase(@ApplicationContext context: Context, guard: DatabaseGuard): AppDatabase {
         guard.prepare(AppDatabase.NAME, AppDatabase.VERSION)
         return Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.NAME)
+            .addMigrations(*ALL_MIGRATIONS)
             // Страховка, если DatabaseGuard не смог прочитать версию файла
             .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
@@ -28,4 +31,7 @@ object DatabaseModule {
 
     @Provides
     fun provideProfileDao(db: AppDatabase): ProfileDao = db.profileDao()
+
+    @Provides
+    fun provideProductDao(db: AppDatabase): ProductDao = db.productDao()
 }

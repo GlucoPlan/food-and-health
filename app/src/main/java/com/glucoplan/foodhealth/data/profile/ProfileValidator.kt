@@ -1,5 +1,6 @@
 package com.glucoplan.foodhealth.data.profile
 
+import com.glucoplan.foodhealth.data.NumberText
 import java.util.Locale
 
 /** Профиль без служебных полей синхронизации. */
@@ -64,12 +65,9 @@ object ProfileValidator {
     }
 
     /** 10.0 → "10", 12.5 → "12,5". */
-    fun formatCarbs(value: Double): String =
-        if (value % 1.0 == 0.0) value.toLong().toString()
-        else value.toString().replace('.', ',')
+    fun formatCarbs(value: Double): String = NumberText.format(value)
 
-    private fun parseNumber(text: String): Double? =
-        text.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
+    private fun parseNumber(text: String): Double? = NumberText.parse(text)
 
     private fun normalize(name: String) = name.trim().lowercase(Locale.forLanguageTag("ru"))
 }

@@ -3,6 +3,7 @@ package com.glucoplan.foodhealth.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +42,8 @@ fun ProfileEditScreen(onDone: () -> Unit, viewModel: ProfileEditViewModel = hilt
     Scaffold(
         topBar = {
             TopAppBar(
+                // Строку состояния уже учёл внешний Scaffold
+                windowInsets = WindowInsets(0),
                 title = { Text(if (state.isNew) "Новый профиль" else "Профиль") },
                 navigationIcon = {
                     IconButton(onClick = onDone) {
@@ -50,7 +53,7 @@ fun ProfileEditScreen(onDone: () -> Unit, viewModel: ProfileEditViewModel = hilt
             )
         },
         // Отступы системных панелей уже учтены внешним Scaffold с нижней навигацией
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0),
+        contentWindowInsets = WindowInsets(0),
     ) { padding ->
         if (!state.loaded) return@Scaffold
         val form = state.form

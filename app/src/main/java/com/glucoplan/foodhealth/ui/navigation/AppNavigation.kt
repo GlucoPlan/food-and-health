@@ -37,11 +37,15 @@ import androidx.navigation.navArgument
 import com.glucoplan.foodhealth.ui.dishes.DishesScreen
 import com.glucoplan.foodhealth.ui.history.HistoryScreen
 import com.glucoplan.foodhealth.ui.meal.MealScreen
+import com.glucoplan.foodhealth.ui.products.ProductEditScreen
+import com.glucoplan.foodhealth.ui.products.ProductEditViewModel
 import com.glucoplan.foodhealth.ui.products.ProductsScreen
 import com.glucoplan.foodhealth.ui.settings.ProfileEditScreen
 import com.glucoplan.foodhealth.ui.settings.ProfileEditViewModel
 import com.glucoplan.foodhealth.ui.settings.SettingsScreen
 
+private const val PRODUCTS_LIST = "products/list"
+private const val PRODUCT_EDIT_BASE = "products/edit"
 private const val SETTINGS_MAIN = "settings/main"
 private const val PROFILE_EDIT_BASE = "settings/profile"
 
@@ -91,7 +95,19 @@ fun AppNavigation(settingsBadge: Boolean) {
         ) {
             composable(Tab.Meal.route) { MealScreen() }
             composable(Tab.History.route) { HistoryScreen() }
-            composable(Tab.Products.route) { ProductsScreen() }
+            navigation(startDestination = PRODUCTS_LIST, route = Tab.Products.route) {
+                composable(PRODUCTS_LIST) {
+                    ProductsScreen(onOpenProduct = { id ->
+                        navController.navigate(if (id == null) PRODUCT_EDIT_BASE else "$PRODUCT_EDIT_BASE?id=$id")
+                    })
+                }
+                composable(
+                    route = "$PRODUCT_EDIT_BASE?${ProductEditViewModel.ARG_ID}={${ProductEditViewModel.ARG_ID}}",
+                    arguments = listOf(optionalIdArgument(ProductEditViewModel.ARG_ID)),
+                ) {
+                    ProductEditScreen(onDone = { navController.popBackStack() })
+                }
+            }
             composable(Tab.Dishes.route) { DishesScreen() }
             navigation(startDestination = SETTINGS_MAIN, route = Tab.Settings.route) {
                 composable(SETTINGS_MAIN) {
@@ -101,19 +117,20 @@ fun AppNavigation(settingsBadge: Boolean) {
                 }
                 composable(
                     route = "$PROFILE_EDIT_BASE?${ProfileEditViewModel.ARG_ID}={${ProfileEditViewModel.ARG_ID}}",
-                    arguments = listOf(
-                        navArgument(ProfileEditViewModel.ARG_ID) {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        },
-                    ),
+                    arguments = listOf(optionalIdArgument(ProfileEditViewModel.ARG_ID)),
                 ) {
                     ProfileEditScreen(onDone = { navController.popBackStack() })
                 }
             }
         }
     }
+}
+
+/** Необязательный id в маршруте: нет id — создание новой записи. */
+private fun optionalIdArgument(name: String) = navArgument(name) {
+    type = NavType.StringType
+    nullable = true
+    defaultValue = null
 }
 
 /** Заглушка вкладки, которая появится в следующих подзадачах. */
