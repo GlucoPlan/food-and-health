@@ -45,7 +45,10 @@ import com.glucoplan.foodhealth.ui.meal.MealScreen
 import com.glucoplan.foodhealth.ui.pans.PanEditScreen
 import com.glucoplan.foodhealth.ui.pans.PanEditViewModel
 import com.glucoplan.foodhealth.ui.pans.PansScreen
+import com.glucoplan.foodhealth.data.meal.MealItemType
+import com.glucoplan.foodhealth.ui.picker.PickedItem
 import com.glucoplan.foodhealth.ui.picker.ProductPickerScreen
+import com.glucoplan.foodhealth.ui.picker.ProductPickerViewModel
 import com.glucoplan.foodhealth.ui.products.ProductEditScreen
 import com.glucoplan.foodhealth.ui.products.ProductEditViewModel
 import com.glucoplan.foodhealth.ui.products.ProductsScreen
@@ -67,8 +70,8 @@ private const val DISH_EDIT_BASE = "dishes/edit"
 /** Выбор продукта для состава блюда (потом и для приёма пищи). */
 private const val PICKER = "picker"
 
-/** Ключ: какой продукт выбран — кладёт выбор продукта вызвавшему экрану. */
-private const val PICKED_PRODUCT_ID = "picked_product_id"
+/** Ключ: что выбрано (PickedItem строкой) — кладёт выбор продукта вызвавшему экрану. */
+private const val PICKED_ITEM = "picked_item"
 
 /** Ключ: id продукта, только что созданного из выбора продукта. */
 private const val CREATED_PRODUCT_ID = "created_product_id"
@@ -126,7 +129,33 @@ fun AppNavigation(settingsBadge: Boolean) {
             startDestination = Tab.Meal.route,
             modifier = Modifier.padding(padding),
         ) {
-            composable(Tab.Meal.route) { MealScreen() }
+            composable(Tab.Meal.route) { entry ->
+                val picked by entry.savedStateHandle.getStateFlow<String?>(PICKED_ITEM, null)
+                    .collectAsStateWithLifecycle()
+                val scanned by entry.scannedBarcode()
+                val created by entry.savedStateHandle.getStateFlow<String?>(CREATED_PRODUCT_ID, null)
+                    .collectAsStateWithLifecycle()
+                MealScreen(
+                    onAdd = { profileId ->
+                        navController.navigate(
+                            "$PICKER?${ProductPickerViewModel.ARG_MODE}=${ProductPickerViewModel.MODE_MEAL}" +
+                                (profileId?.let { "&${ProductPickerViewModel.ARG_PROFILE}=$it" } ?: "")
+                        )
+                    },
+                    onScan = { navController.navigate(SCANNER) },
+                    onCreateProduct = { code ->
+                        navController.navigate("$PRODUCT_EDIT_BASE?${ProductEditViewModel.ARG_BARCODE}=$code")
+                    },
+                    picked = picked?.let(PickedItem::decode),
+                    scannedBarcode = scanned,
+                    createdProductId = created,
+                    onResultsHandled = {
+                        entry.savedStateHandle[PICKED_ITEM] = null
+                        entry.savedStateHandle[SCANNED_BARCODE] = null
+                        entry.savedStateHandle[CREATED_PRODUCT_ID] = null
+                    },
+                )
+            }
             composable(Tab.History.route) { HistoryScreen() }
             navigation(startDestination = PRODUCTS_LIST, route = Tab.Products.route) {
                 composable(PRODUCTS_LIST) { entry ->
@@ -180,23 +209,34 @@ fun AppNavigation(settingsBadge: Boolean) {
                     route = "$DISH_EDIT_BASE?${DishEditViewModel.ARG_ID}={${DishEditViewModel.ARG_ID}}",
                     arguments = listOf(optionalIdArgument(DishEditViewModel.ARG_ID)),
                 ) { entry ->
-                    val picked by entry.savedStateHandle.getStateFlow<String?>(PICKED_PRODUCT_ID, null)
+                    val picked by entry.savedStateHandle.getStateFlow<String?>(PICKED_ITEM, null)
                         .collectAsStateWithLifecycle()
                     DishEditScreen(
                         onDone = { navController.popBackStack() },
                         onAddProduct = { navController.navigate(PICKER) },
-                        pickedProductId = picked,
-                        onPickedHandled = { entry.savedStateHandle[PICKED_PRODUCT_ID] = null },
+                        // В состав блюда выбираются только продукты
+                        pickedProductId = picked?.let(PickedItem::decode)
+                            ?.takeIf { it.type == MealItemType.PRODUCT }?.id,
+                        onPickedHandled = { entry.savedStateHandle[PICKED_ITEM] = null },
                     )
                 }
             }
-            composable(PICKER) { entry ->
+            composable(
+                route = "$PICKER?${ProductPickerViewModel.ARG_MODE}={${ProductPickerViewModel.ARG_MODE}}&" +
+                    "${ProductPickerViewModel.ARG_PROFILE}={${ProductPickerViewModel.ARG_PROFILE}}",
+                arguments = listOf(
+                    optionalIdArgument(ProductPickerViewModel.ARG_MODE),
+                    optionalIdArgument(ProductPickerViewModel.ARG_PROFILE),
+                ),
+            ) { entry ->
                 val scanned by entry.scannedBarcode()
                 val created by entry.savedStateHandle.getStateFlow<String?>(CREATED_PRODUCT_ID, null)
                     .collectAsStateWithLifecycle()
+                val forMeal = entry.arguments?.getString(ProductPickerViewModel.ARG_MODE) == ProductPickerViewModel.MODE_MEAL
                 ProductPickerScreen(
-                    onPicked = { productId ->
-                        navController.previousBackStackEntry?.savedStateHandle?.set(PICKED_PRODUCT_ID, productId)
+                    title = if (forMeal) "Добавить в приём" else "Выбор продукта",
+                    onPicked = { item ->
+                        navController.previousBackStackEntry?.savedStateHandle?.set(PICKED_ITEM, item.encode())
                         navController.popBackStack()
                     },
                     onCreateProduct = { barcode ->

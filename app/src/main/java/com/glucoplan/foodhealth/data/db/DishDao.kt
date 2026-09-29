@@ -11,6 +11,10 @@ interface DishDao {
     @Query("SELECT * FROM dish WHERE deleted = 0")
     fun observeActiveDishes(): Flow<List<DishEntity>>
 
+    /** Вместе с удалёнными: прошлые приёмы показывают удалённые блюда (ТЗ 5.5). */
+    @Query("SELECT * FROM dish")
+    fun observeAllDishes(): Flow<List<DishEntity>>
+
     @Query("SELECT * FROM dish WHERE id = :id")
     suspend fun getDish(id: String): DishEntity?
 

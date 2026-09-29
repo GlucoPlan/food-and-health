@@ -6,11 +6,15 @@ import com.glucoplan.foodhealth.data.db.DishDao
 import com.glucoplan.foodhealth.data.db.DishEntity
 import com.glucoplan.foodhealth.data.db.DishIngredientEntity
 import com.glucoplan.foodhealth.data.db.DishVersionEntity
+import com.glucoplan.foodhealth.data.db.MealDao
 import com.glucoplan.foodhealth.data.db.PanDao
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
 import com.glucoplan.foodhealth.data.product.ProductRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -32,6 +36,7 @@ class DishRepository @Inject constructor(
     private val db: AppDatabase,
     private val dao: DishDao,
     private val panDao: PanDao,
+    private val mealDao: MealDao,
     private val products: ProductRepository,
     private val devicePrefs: DevicePrefs,
 ) {
@@ -51,12 +56,45 @@ class DishRepository @Inject constructor(
             DishSummary(
                 id = dish.id,
                 name = dish.name,
+                currentVersionId = entity.id,
                 lastCookedAt = version.createdAt,
                 per100 = DishCalculator.per100(version, productById),
                 byRawIngredients = version.byRawIngredients,
             )
         }
     }
+
+    /** Все варки всех блюд (и удалённых) по id варки — для приёма пищи и истории. */
+    fun observeVersionCatalog(): Flow<Map<String, VersionInfo>> = combine(
+        dao.observeAllDishes(),
+        dao.observeVersions(),
+        dao.observeIngredients(),
+        products.observeAllIncludingDeleted(),
+    ) { dishes, versions, ingredients, productList ->
+        val dishById = dishes.associateBy { it.id }
+        val ingredientsByVersion = ingredients.groupBy { it.dishVersionId }
+        val productById = productList.associateBy { it.id }
+        versions.mapNotNull { entity ->
+            val dish = dishById[entity.dishId] ?: return@mapNotNull null
+            val version = entity.toVersion(ingredientsByVersion[entity.id].orEmpty())
+            VersionInfo(
+                versionId = version.id,
+                dishId = dish.id,
+                dishName = dish.name,
+                dishDeleted = dish.deleted,
+                createdAt = version.createdAt,
+                per100 = DishCalculator.per100(version, productById),
+                isCurrent = dish.currentVersionId == version.id,
+            )
+        }.associateBy { it.versionId }
+    }
+
+    /** Текущая варка уже записана в приёме пищи — её состав и вес не редактируются (ТЗ 5.4). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeCurrentVersionUsed(dishId: String): Flow<Boolean> =
+        dao.observeDish(dishId).flatMapLatest { dish ->
+            dish?.let { mealDao.observeVersionUsed(it.currentVersionId) } ?: flowOf(false)
+        }
 
     /** Варки блюда, новые сверху (ТЗ 5.4). */
     fun observeVersionSummaries(dishId: String): Flow<List<VersionSummary>> = combine(
@@ -93,6 +131,7 @@ class DishRepository @Inject constructor(
 
     /**
      * Сохраняет форму редактора. [dishId] null только для [DishSaveMode.NEW].
+     * [DishSaveMode.EDIT] для варки, уже записанной в приём пищи, меняет только название блюда.
      * Вес кастрюли берётся из базы (удалённая кастрюля тоже годится: её могли выбрать раньше).
      */
     suspend fun save(dishId: String?, mode: DishSaveMode, form: DishForm): DishValidation {
@@ -140,6 +179,9 @@ class DishRepository @Inject constructor(
                 else -> {
                     val dish = dao.getDish(dishId) ?: return@withTransaction
                     val version = dao.getVersion(dish.currentVersionId) ?: return@withTransaction
+                    dao.upsertDish(dish.copy(name = result.name, updatedAt = now, deviceId = device))
+                    // ТЗ 5.4: записанная в приём пищи варка не меняется, меняется только название блюда
+                    if (mealDao.isVersionUsed(version.id)) return@withTransaction
                     dao.upsertVersion(
                         version.copy(
                             panId = result.panId,
@@ -159,7 +201,6 @@ class DishRepository @Inject constructor(
                             ?: DishIngredientEntity(draft.key, version.id, draft.productId, weight, now, false, device)
                     }
                     dao.upsertIngredients(removed + upserted)
-                    dao.upsertDish(dish.copy(name = result.name, updatedAt = now, deviceId = device))
                 }
             }
         }

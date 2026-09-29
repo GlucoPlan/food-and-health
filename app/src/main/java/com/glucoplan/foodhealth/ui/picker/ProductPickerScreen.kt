@@ -36,12 +36,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.glucoplan.foodhealth.data.meal.MealItemType
+import com.glucoplan.foodhealth.ui.format.nutritionLine
+import com.glucoplan.foodhealth.ui.format.shortDate
 import com.glucoplan.foodhealth.ui.products.nutritionLine
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductPickerScreen(
-    onPicked: (productId: String) -> Unit,
+    title: String,
+    onPicked: (PickedItem) -> Unit,
     onCreateProduct: (barcode: String?) -> Unit,
     onScan: () -> Unit,
     onBack: () -> Unit,
@@ -52,7 +56,7 @@ fun ProductPickerScreen(
     viewModel: ProductPickerViewModel = hiltViewModel(),
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
-    val products by viewModel.products.collectAsStateWithLifecycle()
+    val sections by viewModel.sections.collectAsStateWithLifecycle()
     val event by viewModel.event.collectAsStateWithLifecycle()
 
     LaunchedEffect(scannedBarcode) {
@@ -69,7 +73,7 @@ fun ProductPickerScreen(
     }
     LaunchedEffect(event) {
         when (val e = event) {
-            is PickerEvent.Picked -> { viewModel.onEventHandled(); onPicked(e.productId) }
+            is PickerEvent.Picked -> { viewModel.onEventHandled(); onPicked(e.item) }
             is PickerEvent.CreateWithBarcode -> { viewModel.onEventHandled(); onCreateProduct(e.barcode) }
             null -> Unit
         }
@@ -78,7 +82,7 @@ fun ProductPickerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Выбор продукта") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
@@ -117,24 +121,61 @@ fun ProductPickerScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
             )
-            val list = products ?: return@Column
-            if (list.isEmpty()) {
+            val list = sections ?: return@Column
+            if (list.all { it.rows.isEmpty() }) {
                 Box(Modifier.fillMaxSize().padding(32.dp), Alignment.Center) {
                     Text("Ничего не найдено", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
-                    items(list, key = { it.id }) { product ->
-                        ListItem(
-                            headlineContent = { Text(product.name) },
-                            overlineContent = product.brand?.let { b -> @Composable { Text(b) } },
-                            supportingContent = { Text(nutritionLine(product)) },
-                            modifier = Modifier.clickable { onPicked(product.id) },
-                        )
-                        HorizontalDivider()
+                    list.forEachIndexed { index, section ->
+                        section.title?.let { title ->
+                            item(key = "header$index") {
+                                Text(
+                                    title,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                                )
+                            }
+                        }
+                        items(section.rows, key = { row -> "$index:" + rowKey(row) }) { row ->
+                            PickerRowItem(row, onClick = {
+                                onPicked(
+                                    when (row) {
+                                        is PickerRow.ProductRow -> PickedItem(MealItemType.PRODUCT, row.product.id)
+                                        is PickerRow.DishRow -> PickedItem(MealItemType.DISH, row.dish.currentVersionId)
+                                    }
+                                )
+                            })
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+private fun rowKey(row: PickerRow) = when (row) {
+    is PickerRow.ProductRow -> "p" + row.product.id
+    is PickerRow.DishRow -> "d" + row.dish.id
+}
+
+@Composable
+private fun PickerRowItem(row: PickerRow, onClick: () -> Unit) {
+    when (row) {
+        is PickerRow.ProductRow -> ListItem(
+            headlineContent = { Text(row.product.name) },
+            overlineContent = row.product.brand?.let { b -> @Composable { Text(b) } },
+            supportingContent = { Text(nutritionLine(row.product)) },
+            modifier = Modifier.clickable(onClick = onClick),
+        )
+        is PickerRow.DishRow -> ListItem(
+            headlineContent = { Text(row.dish.name) },
+            overlineContent = { Text("Блюдо · сварено ${shortDate(row.dish.lastCookedAt)}") },
+            supportingContent = { Text(nutritionLine(row.dish.per100)) },
+            modifier = Modifier.clickable(onClick = onClick),
+        )
     }
 }

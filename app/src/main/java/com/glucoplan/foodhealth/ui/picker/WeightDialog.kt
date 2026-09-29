@@ -31,36 +31,43 @@ import com.glucoplan.foodhealth.ui.format.grams
 import com.glucoplan.foodhealth.ui.format.nutritionLine
 
 /**
- * Ввод веса сразу после выбора продукта (ТЗ 4.1): цифровая клавиатура открыта сразу.
- * Для продукта со средним весом штуки можно ввести количество штук.
+ * Ввод веса сразу после выбора (ТЗ 4.1): цифровая клавиатура открыта сразу.
+ * Если задан [pieceWeightG], можно ввести количество штук; тогда в [onConfirm] приходят и штуки.
+ * [per100] — КБЖУ на 100 г, для подсказки под полем.
  */
 @Composable
-fun WeightDialog(product: Product, onConfirm: (grams: Double) -> Unit, onDismiss: () -> Unit) {
-    val pieceWeight = product.pieceWeightG
+fun WeightDialog(
+    title: String,
+    pieceWeightG: Double?,
+    per100: Nutrition,
+    onConfirm: (grams: Double, pieces: Double?) -> Unit,
+    onDismiss: () -> Unit,
+) {
     var text by remember { mutableStateOf("") }
     var byPieces by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
 
     val value = NumberText.parse(text)?.takeIf { it > 0 }
+    val pieces = value.takeIf { byPieces && pieceWeightG != null }
     val gramsValue = when {
         value == null -> null
-        byPieces && pieceWeight != null -> PieceWeight.toGrams(value, pieceWeight)
+        pieces != null -> PieceWeight.toGrams(pieces, pieceWeightG!!)
         else -> value
     }
-    val confirm = { gramsValue?.let(onConfirm) }
+    val confirm = { if (gramsValue != null) onConfirm(gramsValue, pieces) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(product.name) },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (pieceWeight != null) {
+                if (pieceWeightG != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(selected = !byPieces, onClick = { byPieces = false }, label = { Text("Граммы") })
                         FilterChip(
                             selected = byPieces,
                             onClick = { byPieces = true },
-                            label = { Text("Штуки по ${grams(pieceWeight)}") },
+                            label = { Text("Штуки по ${grams(pieceWeightG)}") },
                         )
                     }
                 }
@@ -77,8 +84,8 @@ fun WeightDialog(product: Product, onConfirm: (grams: Double) -> Unit, onDismiss
                 LaunchedEffect(Unit) { focus.requestFocus() }
                 if (gramsValue != null) {
                     Text(
-                        (if (byPieces) "${grams(gramsValue)} · " else "") +
-                            nutritionLine(Nutrition.portion(product, gramsValue)),
+                        (if (pieces != null) "${grams(gramsValue)} · " else "") +
+                            nutritionLine(per100.scaled(gramsValue / 100.0)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -89,3 +96,8 @@ fun WeightDialog(product: Product, onConfirm: (grams: Double) -> Unit, onDismiss
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
+
+/** Ввод веса продукта: граммы или штуки. */
+@Composable
+fun WeightDialog(product: Product, onConfirm: (grams: Double, pieces: Double?) -> Unit, onDismiss: () -> Unit) =
+    WeightDialog(product.name, product.pieceWeightG, Nutrition.per100(product), onConfirm, onDismiss)

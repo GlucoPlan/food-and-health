@@ -134,6 +134,18 @@ fun DishEditScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            val locked = state.compositionLocked
+            if (locked) {
+                Card(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    Text(
+                        "Эта варка уже записана в приёмах пищи. Чтобы изменить состав или вес, " +
+                            "нажмите «Сварил заново». Название можно менять.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
+
             Section("Состав")
             state.errors[DishField.INGREDIENTS]?.let { ErrorText(it) }
             state.rows.forEach { row ->
@@ -153,25 +165,29 @@ fun DishEditScreen(
                         onValueChange = { viewModel.onWeightChange(row.key, it) },
                         suffix = { Text("г") },
                         singleLine = true,
+                        readOnly = locked,
                         isError = row.error != null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.width(110.dp),
                     )
-                    IconButton(onClick = { viewModel.onRemoveIngredient(row.key) }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Убрать ${row.name}")
+                    if (!locked) {
+                        IconButton(onClick = { viewModel.onRemoveIngredient(row.key) }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Убрать ${row.name}")
+                        }
                     }
                 }
             }
-            OutlinedButton(onClick = onAddProduct) {
+            if (!locked) OutlinedButton(onClick = onAddProduct) {
                 Icon(Icons.Filled.Add, contentDescription = null)
                 Text("Добавить продукт", modifier = Modifier.padding(start = 8.dp))
             }
 
             Section("Вес готового блюда")
-            PanChoice(state.selectedPan, onClick = { choosingPan = true })
+            PanChoice(state.selectedPan, onClick = { if (!locked) choosingPan = true })
             OutlinedTextField(
                 value = form.grossWeight,
                 onValueChange = viewModel::onGrossChange,
+                readOnly = locked,
                 label = { Text(if (state.selectedPan != null) "Вес вместе с кастрюлей" else "Вес готового блюда") },
                 suffix = { Text("г") },
                 singleLine = true,
@@ -202,7 +218,11 @@ fun DishEditScreen(
     }
 
     state.pendingProduct?.let { product ->
-        WeightDialog(product, onConfirm = viewModel::onWeightConfirmed, onDismiss = viewModel::onWeightDismissed)
+        WeightDialog(
+            product,
+            onConfirm = { grams, _ -> viewModel.onWeightConfirmed(grams) },
+            onDismiss = viewModel::onWeightDismissed,
+        )
     }
 
     if (choosingPan) {

@@ -6,6 +6,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.glucoplan.foodhealth.data.db.AppDatabase
+import com.glucoplan.foodhealth.data.db.MealEntity
+import com.glucoplan.foodhealth.data.db.MealItemEntity
 import com.glucoplan.foodhealth.data.pan.PanForm
 import com.glucoplan.foodhealth.data.pan.PanRepository
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
@@ -54,7 +56,7 @@ class DishRepositoryTest {
         })
         products = ProductRepository(db.productDao(), prefs)
         pans = PanRepository(db.panDao(), prefs)
-        repo = DishRepository(db, db.dishDao(), db.panDao(), products, prefs)
+        repo = DishRepository(db, db.dishDao(), db.panDao(), db.mealDao(), products, prefs)
 
         buckwheat = saveProduct("Гречка", kcal = "313", carbs = "62")
         butter = saveProduct("Масло", kcal = "748", fat = "82,5")
@@ -180,5 +182,34 @@ class DishRepositoryTest {
         assertThat(repo.save(null, DishSaveMode.NEW, DishForm(name = "Пусто")))
             .isInstanceOf(DishValidation.Invalid::class.java)
         assertThat(db.dishDao().observeActiveDishes().first()).isEmpty()
+    }
+
+    @Test
+    fun `записанную в приём варку править нельзя — меняется только название`() = runTest {
+        repo.save(null, DishSaveMode.NEW, form(buckwheat to "200"))
+        val dish = onlyDish()
+        val version = repo.getVersion(dish.currentVersionId)!!
+        assertThat(repo.observeCurrentVersionUsed(dish.id).first()).isFalse()
+
+        // Приём пищи с этой варкой
+        db.mealDao().upsertMeal(MealEntity("m", "p", 1L, null, null, null, 1L, false, "dev"))
+        db.mealDao().upsertItems(
+            listOf(MealItemEntity("mi", "m", "dish", null, version.id, 300.0, null, 1.0, 1.0, 1.0, 1.0, 1L, false, "dev"))
+        )
+        assertThat(repo.observeCurrentVersionUsed(dish.id).first()).isTrue()
+
+        val row = version.ingredients.single()
+        repo.save(
+            dish.id, DishSaveMode.EDIT,
+            DishForm(name = "Гречка варёная", ingredients = listOf(IngredientDraft(row.id, buckwheat, "999"))),
+        )
+        assertThat(onlyDish().name).isEqualTo("Гречка варёная")
+        assertThat(repo.getVersion(version.id)).isEqualTo(version)
+
+        // «Сварил заново» разрешён
+        repo.save(dish.id, DishSaveMode.RECOOK, form(buckwheat to "999"))
+        val recooked = repo.getVersion(onlyDish().currentVersionId)!!
+        assertThat(recooked.ingredients.single().weightG).isEqualTo(999.0)
+        assertThat(repo.observeCurrentVersionUsed(dish.id).first()).isFalse()
     }
 }

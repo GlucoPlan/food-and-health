@@ -6,6 +6,7 @@ import com.glucoplan.foodhealth.data.db.ALL_MIGRATIONS
 import com.glucoplan.foodhealth.data.db.AppDatabase
 import com.glucoplan.foodhealth.data.db.DatabaseGuard
 import com.glucoplan.foodhealth.data.db.DishDao
+import com.glucoplan.foodhealth.data.db.MealDao
 import com.glucoplan.foodhealth.data.db.PanDao
 import com.glucoplan.foodhealth.data.db.ProductDao
 import com.glucoplan.foodhealth.data.db.ProfileDao
@@ -42,4 +43,7 @@ object DatabaseModule {
 
     @Provides
     fun provideDishDao(db: AppDatabase): DishDao = db.dishDao()
+
+    @Provides
+    fun provideMealDao(db: AppDatabase): MealDao = db.mealDao()
 }

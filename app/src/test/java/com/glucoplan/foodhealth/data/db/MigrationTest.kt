@@ -142,4 +142,34 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 3 до текущей блюда сохраняются, приёмы пищи добавляются`() = runTest {
+        createDatabase(3) { db ->
+            db.execSQL(
+                "INSERT INTO dish (id, name, current_version_id, updated_at, deleted, device_id) " +
+                    "VALUES ('d', 'Суп', 'v', 1, 0, 'dev')"
+            )
+            db.execSQL(
+                "INSERT INTO dish_version (id, dish_id, created_at, pan_id, gross_weight_g, net_weight_g, " +
+                    "updated_at, deleted, device_id) VALUES ('v', 'd', 1, NULL, NULL, 500, 1, 0, 'dev')"
+            )
+        }
+
+        val db = openCurrent()
+        try {
+            assertThat(db.dishDao().getDish("d")?.name).isEqualTo("Суп")
+            assertThat(db.dishDao().getVersion("v")?.netWeightG).isEqualTo(500.0)
+
+            db.mealDao().upsertMeal(MealEntity("m", "p", 10L, null, 6.5, 2.0, 1L, false, "dev"))
+            db.mealDao().upsertItems(
+                listOf(MealItemEntity("i", "m", "dish", null, "v", 300.0, null, 120.0, 6.0, 3.0, 18.0, 1L, false, "dev"))
+            )
+            assertThat(db.mealDao().getMeal("m")?.glucose).isEqualTo(6.5)
+            assertThat(db.mealDao().itemsOf("m").single().snapshotKcal).isEqualTo(120.0)
+            assertThat(db.mealDao().isVersionUsed("v")).isTrue()
+        } finally {
+            db.close()
+        }
+    }
 }

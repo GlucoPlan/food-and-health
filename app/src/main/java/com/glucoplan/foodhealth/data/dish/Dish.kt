@@ -24,6 +24,7 @@ data class Dish(val id: String, val name: String, val currentVersionId: String, 
 data class DishSummary(
     val id: String,
     val name: String,
+    val currentVersionId: String,
     val lastCookedAt: Long,
     val per100: Nutrition,
     val byRawIngredients: Boolean,
@@ -37,6 +38,17 @@ data class VersionSummary(
     val byRawIngredients: Boolean,
     val panName: String?,
     val panDeleted: Boolean,
+    val per100: Nutrition,
+    val isCurrent: Boolean,
+)
+
+/** Варка для приёма пищи: чья она, когда сварена, КБЖУ на 100 г. */
+data class VersionInfo(
+    val versionId: String,
+    val dishId: String,
+    val dishName: String,
+    val dishDeleted: Boolean,
+    val createdAt: Long,
     val per100: Nutrition,
     val isCurrent: Boolean,
 )

@@ -55,6 +55,8 @@ data class DishEditUi(
     val versions: List<VersionSummary> = emptyList(),
     /** Продукт выбран, ждём ввода веса. */
     val pendingProduct: Product? = null,
+    /** Текущая варка записана в приёме пищи: состав и вес только для чтения (ТЗ 5.4). */
+    val compositionLocked: Boolean = false,
     val done: Boolean = false,
 )
 
@@ -87,8 +89,10 @@ class DishEditViewModel @Inject constructor(
         products.observeAllIncludingDeleted(),
         pans.observeAllIncludingDeleted(),
         dishId?.let(dishes::observeVersionSummaries) ?: flowOf(emptyList()),
-    ) { e, productList, panList, versions ->
+        dishId?.let(dishes::observeCurrentVersionUsed) ?: flowOf(false),
+    ) { e, productList, panList, versions, used ->
         buildUi(e, productList.associateBy { it.id }, panList, versions)
+            .copy(compositionLocked = used && e.mode == DishSaveMode.EDIT)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, DishEditUi(mode = editor.value.mode))
 
     init {

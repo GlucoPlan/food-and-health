@@ -27,3 +27,17 @@ fun shortDate(millis: Long): String {
     val pattern = if (year == thisYear) "d MMM" else "d MMM yyyy"
     return SimpleDateFormat(pattern, ru).format(Date(millis))
 }
+
+/** Время приёма: «Сегодня, 12:30», «Вчера, 19:05», «28 сент., 08:10». */
+fun mealTime(millis: Long, now: Long = System.currentTimeMillis()): String {
+    val day = Calendar.getInstance().apply { timeInMillis = millis }
+    val today = Calendar.getInstance().apply { timeInMillis = now }
+    val time = SimpleDateFormat("HH:mm", ru).format(Date(millis))
+    val sameYear = day.get(Calendar.YEAR) == today.get(Calendar.YEAR)
+    val dayDiff = today.get(Calendar.DAY_OF_YEAR) - day.get(Calendar.DAY_OF_YEAR)
+    return when {
+        sameYear && dayDiff == 0 -> "Сегодня, $time"
+        sameYear && dayDiff == 1 -> "Вчера, $time"
+        else -> "${shortDate(millis)}, $time"
+    }
+}
