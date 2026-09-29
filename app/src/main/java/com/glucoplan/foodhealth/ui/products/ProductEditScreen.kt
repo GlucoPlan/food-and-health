@@ -53,7 +53,7 @@ import com.glucoplan.foodhealth.data.product.ProductSource
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductEditScreen(
-    onDone: () -> Unit,
+    onDone: (createdId: String?) -> Unit,
     onScan: () -> Unit,
     scannedBarcode: String?,
     onScannedHandled: () -> Unit,
@@ -69,7 +69,7 @@ fun ProductEditScreen(
         }
     }
 
-    LaunchedEffect(state.done) { if (state.done) onDone() }
+    LaunchedEffect(state.done) { if (state.done) onDone(state.createdId) }
 
     Scaffold(
         topBar = {
@@ -78,7 +78,7 @@ fun ProductEditScreen(
                 windowInsets = WindowInsets(0),
                 title = { Text(if (state.isNew) "Новый продукт" else "Продукт") },
                 navigationIcon = {
-                    IconButton(onClick = onDone) {
+                    IconButton(onClick = { onDone(null) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },

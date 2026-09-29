@@ -31,4 +31,6 @@ data class Product(
     val notes: String?,
     /** Код нутриента из [Nutrients] → значение на 100 г. */
     val micro: Map<String, Double>,
+    /** Мягко удалён: не показывается в списках, но считается в блюдах и прошлых приёмах. */
+    val deleted: Boolean = false,
 )

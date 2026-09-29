@@ -135,6 +135,10 @@ dependencies {
     implementation(libs.camera.view)
     implementation(libs.mlkit.barcode.scanning)
 
+    // Фото кастрюль: миниатюры и поворот снимка по EXIF
+    implementation(libs.coil.compose)
+    implementation(libs.exifinterface)
+
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.robolectric)

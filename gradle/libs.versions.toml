@@ -13,6 +13,8 @@ datastore = "1.2.1"
 serialization = "1.9.0"
 camerax = "1.5.0"
 mlkit-barcode = "17.3.0"
+coil = "2.7.0"
+exifinterface = "1.4.1"
 core-ktx = "1.19.0"
 activity = "1.13.0"
 
@@ -51,6 +53,9 @@ camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.r
 camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkit-barcode" }
+
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 

@@ -5,6 +5,8 @@ import androidx.room.Room
 import com.glucoplan.foodhealth.data.db.ALL_MIGRATIONS
 import com.glucoplan.foodhealth.data.db.AppDatabase
 import com.glucoplan.foodhealth.data.db.DatabaseGuard
+import com.glucoplan.foodhealth.data.db.DishDao
+import com.glucoplan.foodhealth.data.db.PanDao
 import com.glucoplan.foodhealth.data.db.ProductDao
 import com.glucoplan.foodhealth.data.db.ProfileDao
 import dagger.Module
@@ -34,4 +36,10 @@ object DatabaseModule {
 
     @Provides
     fun provideProductDao(db: AppDatabase): ProductDao = db.productDao()
+
+    @Provides
+    fun providePanDao(db: AppDatabase): PanDao = db.panDao()
+
+    @Provides
+    fun provideDishDao(db: AppDatabase): DishDao = db.dishDao()
 }

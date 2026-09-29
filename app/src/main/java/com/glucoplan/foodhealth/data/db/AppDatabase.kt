@@ -9,7 +9,14 @@ import androidx.room.TypeConverters
  * JSON-схемы каждой версии лежат в app/schemas.
  */
 @Database(
-    entities = [ProfileEntity::class, ProductEntity::class],
+    entities = [
+        ProfileEntity::class,
+        ProductEntity::class,
+        PanEntity::class,
+        DishEntity::class,
+        DishVersionEntity::class,
+        DishIngredientEntity::class,
+    ],
     version = AppDatabase.VERSION,
     exportSchema = true,
 )
@@ -20,8 +27,12 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun productDao(): ProductDao
 
+    abstract fun panDao(): PanDao
+
+    abstract fun dishDao(): DishDao
+
     companion object {
-        const val VERSION = 2
+        const val VERSION = 3
         const val NAME = "food_health.db"
     }
 }

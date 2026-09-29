@@ -12,6 +12,10 @@ interface ProductDao {
     @Query("SELECT * FROM product WHERE deleted = 0")
     fun observeActive(): Flow<List<ProductEntity>>
 
+    /** Вместе с удалёнными: они продолжают считаться в блюдах и прошлых приёмах. */
+    @Query("SELECT * FROM product")
+    fun observeAll(): Flow<List<ProductEntity>>
+
     @Query("SELECT * FROM product WHERE id = :id")
     suspend fun getById(id: String): ProductEntity?
 

@@ -18,6 +18,10 @@ class ProductRepository @Inject constructor(
     fun observeProducts(): Flow<List<Product>> =
         dao.observeActive().map { list -> list.map { it.toProduct() } }
 
+    /** Все продукты вместе с удалёнными — для расчёта блюд и приёмов пищи. */
+    fun observeAllIncludingDeleted(): Flow<List<Product>> =
+        dao.observeAll().map { list -> list.map { it.toProduct() } }
+
     /** Продукт по id, в том числе удалённый: на него могут ссылаться прошлые приёмы пищи. */
     suspend fun get(id: String): Product? = dao.getById(id)?.toProduct()
 
@@ -88,5 +92,6 @@ class ProductRepository @Inject constructor(
         source = ProductSource.fromCode(source),
         notes = notes,
         micro = micro,
+        deleted = deleted,
     )
 }

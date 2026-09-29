@@ -46,5 +46,9 @@ object ProductSearch {
         return ordered + unknown.sortedWith(byName)
     }
 
-    private fun normalize(s: String) = s.trim().lowercase(ru).replace('ё', 'е')
+    /** Для поиска: без регистра и без различия «ё» и «е». */
+    fun normalize(s: String) = s.trim().lowercase(ru).replace('ё', 'е')
+
+    /** Сравнение названий по-русски, без учёта регистра. */
+    fun compareNames(a: String, b: String) = collator.compare(a, b)
 }

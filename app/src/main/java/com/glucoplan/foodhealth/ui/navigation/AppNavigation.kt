@@ -37,9 +37,15 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.glucoplan.foodhealth.ui.dishes.DishEditScreen
+import com.glucoplan.foodhealth.ui.dishes.DishEditViewModel
 import com.glucoplan.foodhealth.ui.dishes.DishesScreen
 import com.glucoplan.foodhealth.ui.history.HistoryScreen
 import com.glucoplan.foodhealth.ui.meal.MealScreen
+import com.glucoplan.foodhealth.ui.pans.PanEditScreen
+import com.glucoplan.foodhealth.ui.pans.PanEditViewModel
+import com.glucoplan.foodhealth.ui.pans.PansScreen
+import com.glucoplan.foodhealth.ui.picker.ProductPickerScreen
 import com.glucoplan.foodhealth.ui.products.ProductEditScreen
 import com.glucoplan.foodhealth.ui.products.ProductEditViewModel
 import com.glucoplan.foodhealth.ui.products.ProductsScreen
@@ -54,6 +60,21 @@ private const val SCANNER = "scanner"
 
 /** Ключ, под которым сканер кладёт код в savedStateHandle вызвавшего экрана. */
 private const val SCANNED_BARCODE = "scanned_barcode"
+
+private const val DISHES_LIST = "dishes/list"
+private const val DISH_EDIT_BASE = "dishes/edit"
+
+/** Выбор продукта для состава блюда (потом и для приёма пищи). */
+private const val PICKER = "picker"
+
+/** Ключ: какой продукт выбран — кладёт выбор продукта вызвавшему экрану. */
+private const val PICKED_PRODUCT_ID = "picked_product_id"
+
+/** Ключ: id продукта, только что созданного из выбора продукта. */
+private const val CREATED_PRODUCT_ID = "created_product_id"
+
+private const val PANS = "pans"
+private const val PAN_EDIT_BASE = "pans/edit"
 
 private const val SETTINGS_MAIN = "settings/main"
 private const val PROFILE_EDIT_BASE = "settings/profile"
@@ -133,14 +154,77 @@ fun AppNavigation(settingsBadge: Boolean) {
                 ) { entry ->
                     val scanned by entry.scannedBarcode()
                     ProductEditScreen(
-                        onDone = { navController.popBackStack() },
+                        onDone = { createdId ->
+                            // Новый продукт, созданный из выбора продукта, сразу выбирается там
+                            if (createdId != null) {
+                                navController.previousBackStackEntry?.savedStateHandle?.set(CREATED_PRODUCT_ID, createdId)
+                            }
+                            navController.popBackStack()
+                        },
                         onScan = { navController.navigate(SCANNER) },
                         scannedBarcode = scanned,
                         onScannedHandled = { entry.savedStateHandle[SCANNED_BARCODE] = null },
                     )
                 }
             }
-            composable(Tab.Dishes.route) { DishesScreen() }
+            navigation(startDestination = DISHES_LIST, route = Tab.Dishes.route) {
+                composable(DISHES_LIST) {
+                    DishesScreen(
+                        onOpenDish = { id ->
+                            navController.navigate(if (id == null) DISH_EDIT_BASE else "$DISH_EDIT_BASE?id=$id")
+                        },
+                        onOpenPans = { navController.navigate(PANS) },
+                    )
+                }
+                composable(
+                    route = "$DISH_EDIT_BASE?${DishEditViewModel.ARG_ID}={${DishEditViewModel.ARG_ID}}",
+                    arguments = listOf(optionalIdArgument(DishEditViewModel.ARG_ID)),
+                ) { entry ->
+                    val picked by entry.savedStateHandle.getStateFlow<String?>(PICKED_PRODUCT_ID, null)
+                        .collectAsStateWithLifecycle()
+                    DishEditScreen(
+                        onDone = { navController.popBackStack() },
+                        onAddProduct = { navController.navigate(PICKER) },
+                        pickedProductId = picked,
+                        onPickedHandled = { entry.savedStateHandle[PICKED_PRODUCT_ID] = null },
+                    )
+                }
+            }
+            composable(PICKER) { entry ->
+                val scanned by entry.scannedBarcode()
+                val created by entry.savedStateHandle.getStateFlow<String?>(CREATED_PRODUCT_ID, null)
+                    .collectAsStateWithLifecycle()
+                ProductPickerScreen(
+                    onPicked = { productId ->
+                        navController.previousBackStackEntry?.savedStateHandle?.set(PICKED_PRODUCT_ID, productId)
+                        navController.popBackStack()
+                    },
+                    onCreateProduct = { barcode ->
+                        navController.navigate(
+                            if (barcode == null) PRODUCT_EDIT_BASE
+                            else "$PRODUCT_EDIT_BASE?${ProductEditViewModel.ARG_BARCODE}=$barcode"
+                        )
+                    },
+                    onScan = { navController.navigate(SCANNER) },
+                    onBack = { navController.popBackStack() },
+                    scannedBarcode = scanned,
+                    onScannedHandled = { entry.savedStateHandle[SCANNED_BARCODE] = null },
+                    createdProductId = created,
+                    onCreatedHandled = { entry.savedStateHandle[CREATED_PRODUCT_ID] = null },
+                )
+            }
+            composable(PANS) {
+                PansScreen(
+                    onOpenPan = { id -> navController.navigate(if (id == null) PAN_EDIT_BASE else "$PAN_EDIT_BASE?id=$id") },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = "$PAN_EDIT_BASE?${PanEditViewModel.ARG_ID}={${PanEditViewModel.ARG_ID}}",
+                arguments = listOf(optionalIdArgument(PanEditViewModel.ARG_ID)),
+            ) {
+                PanEditScreen(onDone = { navController.popBackStack() })
+            }
             composable(SCANNER) {
                 ScannerScreen(
                     onResult = { code ->
@@ -152,9 +236,12 @@ fun AppNavigation(settingsBadge: Boolean) {
             }
             navigation(startDestination = SETTINGS_MAIN, route = Tab.Settings.route) {
                 composable(SETTINGS_MAIN) {
-                    SettingsScreen(onOpenProfile = { id ->
-                        navController.navigate(if (id == null) PROFILE_EDIT_BASE else "$PROFILE_EDIT_BASE?id=$id")
-                    })
+                    SettingsScreen(
+                        onOpenProfile = { id ->
+                            navController.navigate(if (id == null) PROFILE_EDIT_BASE else "$PROFILE_EDIT_BASE?id=$id")
+                        },
+                        onOpenPans = { navController.navigate(PANS) },
+                    )
                 }
                 composable(
                     route = "$PROFILE_EDIT_BASE?${ProfileEditViewModel.ARG_ID}={${ProfileEditViewModel.ARG_ID}}",

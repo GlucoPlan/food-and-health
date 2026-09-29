@@ -82,7 +82,7 @@ class MigrationTest {
     }
 
     @Test
-    fun `1 → 2 сохраняет профили и добавляет продукты`() = runTest {
+    fun `с версии 1 до текущей профили сохраняются, продукты добавляются`() = runTest {
         createDatabase(1) { db ->
             db.execSQL(
                 "INSERT INTO profile (id, name, sd1_enabled, show_xe, carbs_per_xe, updated_at, deleted, device_id) " +
@@ -105,6 +105,39 @@ class MigrationTest {
             )
             db.productDao().upsert(product)
             assertThat(db.productDao().getById("x")).isEqualTo(product)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun `с версии 2 до текущей профили и продукты сохраняются, блюда и кастрюли добавляются`() = runTest {
+        createDatabase(2) { db ->
+            db.execSQL(
+                "INSERT INTO profile (id, name, sd1_enabled, show_xe, carbs_per_xe, updated_at, deleted, device_id) " +
+                    "VALUES ('p1', 'Иван', 0, 0, 10.0, 100, 0, 'dev')"
+            )
+            db.execSQL(
+                "INSERT INTO product (id, name, brand, barcode, kcal, protein, fat, carbs, fiber, sugar, salt, gi, " +
+                    "piece_weight_g, source, notes, micro, updated_at, deleted, device_id) VALUES " +
+                    "('x', 'Гречка', NULL, NULL, 313, 12.6, 3.3, 62, NULL, NULL, NULL, 50, NULL, 'label', NULL, " +
+                    "'{\"fe\":6.7}', 1, 0, 'dev')"
+            )
+        }
+
+        val db = openCurrent()
+        try {
+            assertThat(db.profileDao().getById("p1")?.name).isEqualTo("Иван")
+            val product = db.productDao().getById("x")!!
+            assertThat(product.gi).isEqualTo(50)
+            assertThat(product.micro).containsExactly("fe", 6.7)
+
+            db.panDao().upsert(PanEntity("pan", "Большая", 800.0, null, 1L, false, "dev"))
+            db.dishDao().upsertVersion(DishVersionEntity("v", "d", 1L, "pan", 1300.0, 500.0, 1L, false, "dev"))
+            db.dishDao().upsertIngredients(listOf(DishIngredientEntity("i", "v", "x", 200.0, 1L, false, "dev")))
+            db.dishDao().upsertDish(DishEntity("d", "Каша", "v", 1L, false, "dev"))
+            assertThat(db.dishDao().getDish("d")?.currentVersionId).isEqualTo("v")
+            assertThat(db.dishDao().ingredientsOf("v").single().weightG).isEqualTo(200.0)
         } finally {
             db.close()
         }

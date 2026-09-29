@@ -40,9 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.glucoplan.foodhealth.data.NumberText
+import com.glucoplan.foodhealth.data.nutrition.Nutrition
 import com.glucoplan.foodhealth.data.product.Product
 import com.glucoplan.foodhealth.data.product.ProductSort
+import com.glucoplan.foodhealth.ui.format.nutritionLine
 
 @Composable
 fun ProductsScreen(
@@ -158,10 +159,5 @@ private fun ProductRow(product: Product, onClick: () -> Unit) {
 }
 
 /** «250 ккал · Б 10 · Ж 5 · У 40 · ГИ 55» на 100 г. */
-internal fun nutritionLine(p: Product): String = buildString {
-    append(NumberText.format(p.kcal, maxFraction = 0)).append(" ккал")
-    append(" · Б ").append(NumberText.format(p.protein, maxFraction = 1))
-    append(" · Ж ").append(NumberText.format(p.fat, maxFraction = 1))
-    append(" · У ").append(NumberText.format(p.carbs, maxFraction = 1))
-    p.gi?.let { append(" · ГИ ").append(it) }
-}
+internal fun nutritionLine(p: Product): String =
+    nutritionLine(Nutrition.per100(p)) + (p.gi?.let { " · ГИ $it" } ?: "")

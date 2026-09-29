@@ -24,6 +24,8 @@ data class ProductEditState(
     val microExpanded: Boolean = false,
     /** Сохранено или удалено — экран закрывается. */
     val done: Boolean = false,
+    /** id только что созданного продукта: его сразу выбирает экран выбора продукта. */
+    val createdId: String? = null,
 )
 
 @HiltViewModel
@@ -70,7 +72,9 @@ class ProductEditViewModel @Inject constructor(
     fun save() {
         viewModelScope.launch {
             when (val result = products.save(id, _state.value.form)) {
-                is ProductValidation.Valid -> _state.update { it.copy(done = true) }
+                is ProductValidation.Valid -> _state.update {
+                    it.copy(done = true, createdId = result.product.id.takeIf { id == null })
+                }
                 is ProductValidation.Invalid -> _state.update {
                     it.copy(
                         errors = result.errors,

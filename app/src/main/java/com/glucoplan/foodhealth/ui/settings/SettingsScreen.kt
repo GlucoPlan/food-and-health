@@ -46,6 +46,7 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(
     onOpenProfile: (id: String?) -> Unit,
+    onOpenPans: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val update by viewModel.update.collectAsStateWithLifecycle()
@@ -64,6 +65,14 @@ fun SettingsScreen(
         Text("Настройки", style = MaterialTheme.typography.headlineSmall)
         OwnerCard(profiles, ownerId, onSelect = viewModel::setOwner)
         ProfilesCard(profiles, onOpenProfile)
+        Card(Modifier.fillMaxWidth()) {
+            ListItem(
+                headlineContent = { Text("Кастрюли") },
+                supportingContent = { Text("Название, вес и фото кастрюль для блюд") },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier.clickable(onClick = onOpenPans),
+            )
+        }
         UpdateCard(
             state = update,
             onUpdate = viewModel::startUpdate,
