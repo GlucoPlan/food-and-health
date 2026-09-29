@@ -14,7 +14,7 @@ class ProductValidatorTest {
         (ProductValidator.validate("id", form) as ProductValidation.Valid).product
 
     @Test
-    fun `минимальный продукт: название и КБЖУ`() {
+    fun `минимальный продукт — название и КБЖУ`() {
         val p = product(valid)
         assertThat(p.name).isEqualTo("Молоко")
         assertThat(p.fat).isEqualTo(3.2)
@@ -81,7 +81,7 @@ class ProductValidatorTest {
     }
 
     @Test
-    fun `витамины: пустые пропускаются, отрицательные — ошибка`() {
+    fun `витамины — пустые пропускаются, отрицательные — ошибка`() {
         val p = product(valid.copy(micro = mapOf("vit_c" to "12,5", "ca" to "", "fe" to "0")))
         assertThat(p.micro).containsExactly("vit_c", 12.5, "fe", 0.0)
         assertThat(errors(valid.copy(micro = mapOf("vit_c" to "-1")))).containsKey(ProductField.micro("vit_c"))

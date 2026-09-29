@@ -105,7 +105,7 @@ class ProductRepositoryTest {
     }
 
     @Test
-    fun `удаление мягкое: из списка пропадает, по id доступен`() = runTest {
+    fun `удаление мягкое — из списка пропадает, по id доступен`() = runTest {
         repo.save(null, milk)
         val id = onlyId()
         repo.delete(id)
