@@ -11,6 +11,7 @@ import com.glucoplan.foodhealth.data.dish.DishRepository
 import com.glucoplan.foodhealth.data.nutrition.Nutrition
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
 import com.glucoplan.foodhealth.data.product.ProductRepository
+import com.glucoplan.foodhealth.data.profile.ProfileRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -29,8 +30,12 @@ class MealRepository @Inject constructor(
     private val dao: MealDao,
     private val products: ProductRepository,
     private val dishes: DishRepository,
+    private val profiles: ProfileRepository,
     private val devicePrefs: DevicePrefs,
 ) {
+    /** Дневник СД1 включён у профиля — сахар и дозу сохраняем (раздел 7). */
+    private suspend fun sd1Enabled(profileId: String) = profiles.get(profileId)?.sd1Enabled == true
+
     /** Приёмы профиля с позициями, новые сверху (ТЗ 4.2). */
     fun observeHistory(profileId: String): Flow<List<HistoryMeal>> = combine(
         dao.observeMealsOf(profileId),
@@ -47,6 +52,8 @@ class MealRepository @Inject constructor(
         return MealDraft(
             profileId = meal.profileId,
             eatenAt = meal.eatenAt,
+            glucose = meal.glucose?.let { NumberText.format(it, 1) }.orEmpty(),
+            dose = meal.insulinDose?.let { NumberText.format(it, 2) }.orEmpty(),
             items = dao.itemsOf(mealId).map { item ->
                 DraftItem(
                     key = item.id,
@@ -70,7 +77,9 @@ class MealRepository @Inject constructor(
         val versions = dishes.observeVersionCatalog().first()
         val resolved = MealCalculator.resolve(draft.items, productMap, versions)
         val eatenAt = draft.eatenAt ?: meal.eatenAt
-        val errors = MealValidator.validate(resolved, eatenAt, now)
+        val sd1 = sd1Enabled(profileId)
+        val errors = MealValidator.validate(resolved, eatenAt, now) +
+            (if (sd1) Sd1.validate(draft.glucose, draft.dose) else emptyMap())
         if (errors.isNotEmpty()) return MealRecordResult.Invalid(errors)
 
         val device = devicePrefs.deviceId()
@@ -81,7 +90,17 @@ class MealRepository @Inject constructor(
         val upserted = resolved.map { item -> item.toEntity(existing[item.key]?.id ?: item.key, mealId, now, device) }
 
         db.withTransaction {
-            dao.upsertMeal(meal.copy(profileId = profileId, eatenAt = eatenAt, updatedAt = now, deviceId = device))
+            dao.upsertMeal(
+                meal.copy(
+                    profileId = profileId,
+                    eatenAt = eatenAt,
+                    // Без дневника поля скрыты — прежние значения не стираем
+                    glucose = if (sd1) Sd1.value(draft.glucose) else meal.glucose,
+                    insulinDose = if (sd1) Sd1.value(draft.dose) else meal.insulinDose,
+                    updatedAt = now,
+                    deviceId = device,
+                )
+            )
             dao.upsertItems(removed + upserted)
         }
         return MealRecordResult.Recorded(mealId, MealCalculator.total(resolved))
@@ -115,7 +134,9 @@ class MealRepository @Inject constructor(
         val productMap = products.observeAllIncludingDeleted().first().associateBy { it.id }
         val versions = dishes.observeVersionCatalog().first()
         val resolved = MealCalculator.resolve(draft.items, productMap, versions)
-        val errors = MealValidator.validate(resolved, draft.eatenAt, now)
+        val sd1 = sd1Enabled(profileId)
+        val errors = MealValidator.validate(resolved, draft.eatenAt, now) +
+            (if (sd1) Sd1.validate(draft.glucose, draft.dose) else emptyMap())
         if (errors.isNotEmpty()) return MealRecordResult.Invalid(errors)
 
         val device = devicePrefs.deviceId()
@@ -125,8 +146,8 @@ class MealRepository @Inject constructor(
             profileId = profileId,
             eatenAt = draft.eatenAt ?: now,
             notes = null,
-            glucose = null,
-            insulinDose = null,
+            glucose = if (sd1) Sd1.value(draft.glucose) else null,
+            insulinDose = if (sd1) Sd1.value(draft.dose) else null,
             updatedAt = now,
             deleted = false,
             deviceId = device,

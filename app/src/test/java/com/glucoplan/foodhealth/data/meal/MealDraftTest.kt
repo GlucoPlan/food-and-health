@@ -15,6 +15,8 @@ class MealDraftTest {
                 DraftItem("b", MealItemType.PRODUCT, "хлеб", "60", pieces = "2"),
                 DraftItem("c", MealItemType.DISH, "v1", "350"),
             ),
+            glucose = "6,5",
+            dose = "4",
         )
         assertThat(MealDraftJson.decode(MealDraftJson.encode(draft))).isEqualTo(draft)
     }
@@ -37,5 +39,11 @@ class MealDraftTest {
         val json = """{"items":[{"key":"a","type":"soup","refId":"x","weight":"1"},""" +
             """{"key":"b","type":"product","refId":"y","weight":"2"}]}"""
         assertThat(MealDraftJson.decode(json).items.map { it.key }).containsExactly("b")
+    }
+
+    @Test
+    fun `черновик только с сахаром — не пустой`() {
+        assertThat(MealDraft(glucose = "6").isEmpty).isFalse()
+        assertThat(MealDraftJson.decode(MealDraftJson.encode(MealDraft(dose = "2"))).dose).isEqualTo("2")
     }
 }

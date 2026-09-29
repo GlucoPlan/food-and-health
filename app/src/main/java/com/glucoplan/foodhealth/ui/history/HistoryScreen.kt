@@ -42,6 +42,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.glucoplan.foodhealth.data.NumberText
 import com.glucoplan.foodhealth.data.meal.HistoryDay
 import com.glucoplan.foodhealth.data.meal.HistoryMeal
+import com.glucoplan.foodhealth.data.meal.Sd1
+import com.glucoplan.foodhealth.data.profile.Profile
 import com.glucoplan.foodhealth.ui.format.nutritionLine
 import com.glucoplan.foodhealth.ui.format.shortDate
 import java.text.SimpleDateFormat
@@ -99,7 +101,9 @@ fun HistoryScreen(onOpenMeal: (mealId: String) -> Unit, viewModel: HistoryViewMo
             else -> LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                 state.days.forEach { d ->
                     item(key = "day${d.dayStart}") { DayHeader(d) }
-                    items(d.meals, key = { it.id }) { meal -> MealCard(meal, onClick = { onOpenMeal(meal.id) }) }
+                    items(d.meals, key = { it.id }) { meal ->
+                        MealCard(meal, state.sd1Profile, onClick = { onOpenMeal(meal.id) })
+                    }
                 }
             }
         }
@@ -123,7 +127,7 @@ private fun DayHeader(day: HistoryDay) {
 }
 
 @Composable
-private fun MealCard(meal: HistoryMeal, onClick: () -> Unit) {
+private fun MealCard(meal: HistoryMeal, sd1: Profile?, onClick: () -> Unit) {
     Card(Modifier.fillMaxWidth().padding(bottom = 8.dp).clickable(onClick = onClick)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(meal.eatenAt)), style = MaterialTheme.typography.titleSmall)
@@ -138,9 +142,20 @@ private fun MealCard(meal: HistoryMeal, onClick: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (sd1 != null) {
+                Text(sd1Line(meal, sd1), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }
+
+/** «Сахар 6,5 · Доза 4 ед. · Углеводы 45 г · 3,8 ХЕ» (раздел 7); пустые значения пропускаются. */
+private fun sd1Line(meal: HistoryMeal, profile: Profile): String = listOfNotNull(
+    meal.glucose?.let { "Сахар ${NumberText.format(it, 1)}" },
+    meal.insulinDose?.let { "Доза ${NumberText.format(it, 2)} ед." },
+    "Углеводы ${NumberText.format(meal.total.carbs, 0)} г",
+    Sd1.xe(meal.total.carbs, profile.carbsPerXe)?.takeIf { profile.showXe }?.let { "${NumberText.format(it, 1)} ХЕ" },
+).joinToString(" · ")
 
 /** «Сегодня», «Вчера», «27 сент.». */
 private fun dayTitle(dayStart: Long): String {

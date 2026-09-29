@@ -60,6 +60,10 @@ data class MealUi(
     /** Позиция, для которой выбирают другую варку, и варки её блюда. */
     val versionChoiceKey: String? = null,
     val versions: List<VersionSummary> = emptyList(),
+    /** Выбранный профиль, если у него включён дневник СД1 (раздел 7); иначе null — полей СД1 нет. */
+    val sd1Profile: Profile? = null,
+    val glucose: String = "",
+    val dose: String = "",
 )
 
 /** Состояние экрана, которое не входит в черновик. */
@@ -119,10 +123,14 @@ abstract class MealEditorViewModel(
             },
         ) { d, t, (profileList, ownerId), (productById, catalog), versions ->
             val resolved = MealCalculator.resolve(d.items, productById, catalog)
+            val profileId = d.profileId?.takeIf { id -> profileList.any { it.id == id } } ?: ownerId
             MealUi(
                 loaded = true,
                 profiles = profileList,
-                profileId = d.profileId?.takeIf { id -> profileList.any { it.id == id } } ?: ownerId,
+                profileId = profileId,
+                sd1Profile = profileList.firstOrNull { it.id == profileId }?.takeIf { it.sd1Enabled },
+                glucose = d.glucose,
+                dose = d.dose,
                 eatenAt = d.eatenAt,
                 rows = resolved.zip(d.items) { r, item ->
                     MealRow(r, item.pieces ?: item.weight, item.pieces != null, t.errors[MealField.item(item.key)])
@@ -155,6 +163,10 @@ abstract class MealEditorViewModel(
             }
         })
     }
+
+    fun onGlucoseChange(text: String) = change(MealField.GLUCOSE) { it.copy(glucose = text) }
+
+    fun onDoseChange(text: String) = change(MealField.DOSE) { it.copy(dose = text) }
 
     fun onRemove(key: String) = change(MealField.item(key)) { d -> d.copy(items = d.items.filterNot { it.key == key }) }
 

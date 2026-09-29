@@ -13,6 +13,8 @@ import com.glucoplan.foodhealth.data.dish.IngredientDraft
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
 import com.glucoplan.foodhealth.data.product.ProductForm
 import com.glucoplan.foodhealth.data.product.ProductRepository
+import com.glucoplan.foodhealth.data.profile.ProfileForm
+import com.glucoplan.foodhealth.data.profile.ProfileRepository
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +42,7 @@ class MealEditTest {
     private lateinit var prefsScope: CoroutineScope
     private lateinit var products: ProductRepository
     private lateinit var dishes: DishRepository
+    private lateinit var profiles: ProfileRepository
     private lateinit var repo: MealRepository
 
     private lateinit var milk: String
@@ -57,7 +60,8 @@ class MealEditTest {
         val prefs = DevicePrefs(PreferenceDataStoreFactory.create(scope = prefsScope) { File(tmp.root, "t.preferences_pb") })
         products = ProductRepository(db.productDao(), prefs)
         dishes = DishRepository(db, db.dishDao(), db.panDao(), db.mealDao(), products, prefs)
-        repo = MealRepository(db, db.mealDao(), products, dishes, prefs)
+        profiles = ProfileRepository(db.profileDao(), prefs)
+        repo = MealRepository(db, db.mealDao(), products, dishes, profiles, prefs)
 
         products.save(null, ProductForm("Молоко", kcal = "60", protein = "3", fat = "3,2", carbs = "4,7"))
         products.save(null, ProductForm("Хлеб", kcal = "250", protein = "8", fat = "3", carbs = "48", pieceWeight = "30"))
@@ -169,5 +173,39 @@ class MealEditTest {
         assertThat(r.draft.items.single().refId).isEqualTo(db.dishDao().getDish(dish.id)!!.currentVersionId)
         assertThat(r.draft.items.single().refId).isNotEqualTo(first)
         assertThat(r.skipped).containsExactly("Хлеб")
+    }
+
+    @Test
+    fun `дневник СД1 — правка сахара и дозы, они видны в истории и в открытом приёме`() = runTest {
+        profiles.save(null, ProfileForm("Дочь", sd1Enabled = true))
+        val daughter = profiles.observeProfiles().first().single().id
+        val id = (repo.record(daughter, MealDraft(items = listOf(DraftItem("a", MealItemType.PRODUCT, milk, "100")),
+            glucose = "7,1"), now) as MealRecordResult.Recorded).mealId
+
+        val draft = repo.loadForEdit(id)!!
+        assertThat(draft.glucose).isEqualTo("7,1")
+        assertThat(draft.dose).isEmpty()
+
+        repo.update(id, daughter, draft.copy(glucose = "", dose = "3"), now)
+        val meal = db.mealDao().getMeal(id)!!
+        assertThat(meal.glucose).isNull()
+        assertThat(meal.insulinDose).isEqualTo(3.0)
+        assertThat(repo.observeHistory(daughter).first().single().insulinDose).isEqualTo(3.0)
+    }
+
+    @Test
+    fun `правка приёма профиля без дневника не стирает прежние сахар и дозу`() = runTest {
+        profiles.save(null, ProfileForm("Дочь", sd1Enabled = true))
+        val daughter = profiles.observeProfiles().first().single()
+        val id = (repo.record(daughter.id, MealDraft(items = listOf(DraftItem("a", MealItemType.PRODUCT, milk, "100")),
+            glucose = "7,1", dose = "2"), now) as MealRecordResult.Recorded).mealId
+
+        // Дневник выключили — поля скрыты, правка их не трогает
+        profiles.save(daughter.id, ProfileForm("Дочь", sd1Enabled = false))
+        val draft = repo.loadForEdit(id)!!
+        repo.update(id, daughter.id, draft.copy(glucose = "", dose = ""), now)
+        val meal = db.mealDao().getMeal(id)!!
+        assertThat(meal.glucose).isEqualTo(7.1)
+        assertThat(meal.insulinDose).isEqualTo(2.0)
     }
 }

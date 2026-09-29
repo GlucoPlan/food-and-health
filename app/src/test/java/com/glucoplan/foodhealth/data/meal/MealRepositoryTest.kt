@@ -13,6 +13,8 @@ import com.glucoplan.foodhealth.data.dish.IngredientDraft
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
 import com.glucoplan.foodhealth.data.product.ProductForm
 import com.glucoplan.foodhealth.data.product.ProductRepository
+import com.glucoplan.foodhealth.data.profile.ProfileForm
+import com.glucoplan.foodhealth.data.profile.ProfileRepository
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +42,7 @@ class MealRepositoryTest {
     private lateinit var prefs: DevicePrefs
     private lateinit var products: ProductRepository
     private lateinit var dishes: DishRepository
+    private lateinit var profiles: ProfileRepository
     private lateinit var repo: MealRepository
 
     private lateinit var bread: String
@@ -56,7 +59,8 @@ class MealRepositoryTest {
         prefs = DevicePrefs(PreferenceDataStoreFactory.create(scope = prefsScope) { File(tmp.root, "t.preferences_pb") })
         products = ProductRepository(db.productDao(), prefs)
         dishes = DishRepository(db, db.dishDao(), db.panDao(), db.mealDao(), products, prefs)
-        repo = MealRepository(db, db.mealDao(), products, dishes, prefs)
+        profiles = ProfileRepository(db.profileDao(), prefs)
+        repo = MealRepository(db, db.mealDao(), products, dishes, profiles, prefs)
 
         products.save(null, ProductForm("Хлеб", kcal = "250", protein = "8", fat = "3", carbs = "48", pieceWeight = "30"))
         bread = products.observeProducts().first().single().id
@@ -132,5 +136,42 @@ class MealRepositoryTest {
         val usages = repo.usages("p1")
         assertThat(usages).hasSize(2)
         assertThat(usages.all { it.eatenAt == now - 10_000 }).isTrue()
+    }
+
+    private suspend fun profile(name: String, sd1: Boolean): String {
+        profiles.save(null, ProfileForm(name, sd1Enabled = sd1))
+        return profiles.observeProfiles().first().single { it.name == name }.id
+    }
+
+    @Test
+    fun `дневник СД1 — сахар и доза сохраняются`() = runTest {
+        val daughter = profile("Дочь", sd1 = true)
+        val result = repo.record(daughter, draftWithIds().copy(glucose = "6,5", dose = "4,25"), now) as MealRecordResult.Recorded
+        val meal = db.mealDao().getMeal(result.mealId)!!
+        assertThat(meal.glucose).isEqualTo(6.5)
+        assertThat(meal.insulinDose).isEqualTo(4.25)
+    }
+
+    @Test
+    fun `дневник СД1 — пустые поля допустимы`() = runTest {
+        val daughter = profile("Дочь", sd1 = true)
+        val result = repo.record(daughter, draftWithIds(), now) as MealRecordResult.Recorded
+        assertThat(db.mealDao().getMeal(result.mealId)!!.glucose).isNull()
+    }
+
+    @Test
+    fun `дневник СД1 — неверный сахар не даёт записать`() = runTest {
+        val daughter = profile("Дочь", sd1 = true)
+        val result = repo.record(daughter, draftWithIds().copy(glucose = "50"), now)
+        assertThat((result as MealRecordResult.Invalid).errors).containsKey(MealField.GLUCOSE)
+    }
+
+    @Test
+    fun `без дневника сахар и доза не сохраняются и не проверяются`() = runTest {
+        val ivan = profile("Иван", sd1 = false)
+        val result = repo.record(ivan, draftWithIds().copy(glucose = "мусор", dose = "4"), now) as MealRecordResult.Recorded
+        val meal = db.mealDao().getMeal(result.mealId)!!
+        assertThat(meal.glucose).isNull()
+        assertThat(meal.insulinDose).isNull()
     }
 }

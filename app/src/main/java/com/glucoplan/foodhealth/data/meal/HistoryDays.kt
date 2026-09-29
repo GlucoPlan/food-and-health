@@ -9,7 +9,15 @@ import java.util.Calendar
 
 data class HistoryItem(val name: String, val deleted: Boolean, val grams: Double, val nutrition: Nutrition)
 
-data class HistoryMeal(val id: String, val eatenAt: Long, val items: List<HistoryItem>, val total: Nutrition)
+data class HistoryMeal(
+    val id: String,
+    val eatenAt: Long,
+    val items: List<HistoryItem>,
+    val total: Nutrition,
+    /** Дневник СД1; показываются, только если у профиля включён дневник. */
+    val glucose: Double? = null,
+    val insulinDose: Double? = null,
+)
 
 /** День истории: [dayStart] — местная полночь. */
 data class HistoryDay(val dayStart: Long, val meals: List<HistoryMeal>, val total: Nutrition)
@@ -51,7 +59,10 @@ object HistoryDays {
                 val (name, deleted) = itemName(item, products, versions)
                 HistoryItem(name, deleted, item.weightG, itemNutrition(item, products, versions))
             }
-            HistoryMeal(meal.id, meal.eatenAt, list, list.fold(Nutrition.ZERO) { acc, i -> acc + i.nutrition })
+            HistoryMeal(
+                meal.id, meal.eatenAt, list, list.fold(Nutrition.ZERO) { acc, i -> acc + i.nutrition },
+                meal.glucose, meal.insulinDose,
+            )
         }
     }
 

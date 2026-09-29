@@ -65,10 +65,12 @@ object MealCalculator {
         items.mapNotNull { it.portion }.fold(Nutrition.ZERO) { acc, n -> acc + n }
 }
 
-/** Ключи ошибок: «items», «time», «item:<key>». */
+/** Ключи ошибок: «items», «time», «glucose», «dose», «item:<key>». */
 object MealField {
     const val ITEMS = "items"
     const val TIME = "time"
+    const val GLUCOSE = "glucose"
+    const val DOSE = "dose"
     fun item(key: String) = "item:$key"
 }
 

@@ -31,8 +31,12 @@ data class MealDraft(
     val profileId: String? = null,
     val eatenAt: Long? = null,
     val items: List<DraftItem> = emptyList(),
+    /** Дневник СД1 (раздел 7): сахар, ммоль/л, и доза, ед., как введены; пусто — не указано. */
+    val glucose: String = "",
+    val dose: String = "",
 ) {
-    val isEmpty: Boolean get() = profileId == null && eatenAt == null && items.isEmpty()
+    val isEmpty: Boolean
+        get() = profileId == null && eatenAt == null && items.isEmpty() && glucose.isBlank() && dose.isBlank()
 }
 
 /** Позиция, сопоставленная с продуктом или варкой. */

@@ -32,6 +32,8 @@ object MealDraftJson {
         buildMap {
             draft.profileId?.let { put("profileId", JsonPrimitive(it)) }
             draft.eatenAt?.let { put("eatenAt", JsonPrimitive(it)) }
+            if (draft.glucose.isNotBlank()) put("glucose", JsonPrimitive(draft.glucose))
+            if (draft.dose.isNotBlank()) put("dose", JsonPrimitive(draft.dose))
             put("items", JsonArray(draft.items.map { item ->
                 JsonObject(buildMap {
                     put("key", JsonPrimitive(item.key))
@@ -52,6 +54,8 @@ object MealDraftJson {
             MealDraft(
                 profileId = obj["profileId"]?.jsonPrimitive?.contentOrNull,
                 eatenAt = obj["eatenAt"]?.jsonPrimitive?.longOrNull,
+                glucose = obj["glucose"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                dose = obj["dose"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 items = obj["items"]?.jsonArray.orEmpty().mapNotNull { element ->
                     val item = element as? JsonObject ?: return@mapNotNull null
                     DraftItem(

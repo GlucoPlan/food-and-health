@@ -69,7 +69,7 @@ class MealMessagesTest {
         profiles = ProfileRepository(db.profileDao(), prefs)
         val dishes = DishRepository(db, db.dishDao(), db.panDao(), db.mealDao(), products, prefs)
         store = MealDraftStore(dataStore, scope)
-        vm = MealViewModel(store, MealRepository(db, db.mealDao(), products, dishes, prefs), products, dishes, profiles, prefs)
+        vm = MealViewModel(store, MealRepository(db, db.mealDao(), products, dishes, profiles, prefs), products, dishes, profiles, prefs)
     }
 
     @After

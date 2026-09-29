@@ -27,6 +27,8 @@ data class HistoryUi(
     /** Выбранный день (местная полночь) или null — все дни. */
     val day: Long? = null,
     val days: List<HistoryDay> = emptyList(),
+    /** Выбранный профиль, если у него включён дневник СД1: в приёмах видны сахар, доза, углеводы. */
+    val sd1Profile: Profile? = null,
 )
 
 /** Экран «История» (ТЗ 4.2): приёмы по дням, фильтр по профилю и дате. */
@@ -49,7 +51,14 @@ class HistoryViewModel @Inject constructor(
     val state: StateFlow<HistoryUi> = profileState.flatMapLatest { (list, profileId) ->
         val history = profileId?.let(meals::observeHistory) ?: flowOf(emptyList())
         combine(history, day) { mealList, d ->
-            HistoryUi(loaded = true, profiles = list, profileId = profileId, day = d, days = HistoryDays.group(mealList, d))
+            HistoryUi(
+                loaded = true,
+                profiles = list,
+                profileId = profileId,
+                day = d,
+                days = HistoryDays.group(mealList, d),
+                sd1Profile = list.firstOrNull { it.id == profileId }?.takeIf { it.sd1Enabled },
+            )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistoryUi())
 

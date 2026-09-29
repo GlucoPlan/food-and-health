@@ -80,7 +80,7 @@ fun MealEditScreen(
         },
         bottomBar = {
             if (state.loaded) {
-                TotalsBar(state.total) {
+                TotalsBar(state, viewModel) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = viewModel::repeat, modifier = Modifier.weight(1f)) { Text("Повторить") }
                         Button(
