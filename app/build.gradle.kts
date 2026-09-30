@@ -150,6 +150,9 @@ dependencies {
 
     // Сон из Health Connect (ТЗ 15.5, пробно)
     implementation(libs.health.connect)
+    // Health Connect тянет пустую заглушку listenablefuture, которая вытесняет настоящий
+    // ListenableFuture, нужный CameraX; заглушка рассчитана на то, что в проекте есть Guava
+    implementation(libs.guava)
 
     // Фото кастрюль: миниатюры и поворот снимка по EXIF
     implementation(libs.coil.compose)
