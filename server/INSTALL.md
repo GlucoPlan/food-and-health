@@ -46,7 +46,8 @@ sudo bash server/deploy/install.sh ВАШ-ДОМЕН
 - ставит зависимости Python в отдельное окружение `/opt/foodhealth/venv`;
 - **при первой установке создаёт ключ семьи** и печатает его в конце;
 - создаёт `/etc/foodhealth/reports.json` — время завтрака, обеда и ужина для отчётов;
-- запускает сервис и таймеры: резервная копия в 03:30, отчёты в Telegram в 6:00 по Москве;
+- запускает сервис и таймеры: резервная копия в 03:30, отчёты в Telegram в 6:00 по Москве
+  (каждый день — за вчера, по понедельникам — за неделю, 1-го — за месяц);
 - выпускает сертификат HTTPS и открывает порты 80 и 443 в ufw, если ufw включён;
 - в конце проверяет, что `https://ВАШ-ДОМЕН/health` отвечает.
 
@@ -100,6 +101,7 @@ systemctl list-timers 'foodhealth*' --no-pager                        # два �
    ```
    sudo bash server/deploy/send-reports.sh                 # за вчера
    sudo bash server/deploy/send-reports.sh --week          # за прошлую неделю
+   sudo bash server/deploy/send-reports.sh --month         # за прошлый месяц
    sudo bash server/deploy/send-reports.sh --date 2026-09-30 --force   # за день, даже если уже отправлен
    ```
 

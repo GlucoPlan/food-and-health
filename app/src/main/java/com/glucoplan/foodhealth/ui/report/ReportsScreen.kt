@@ -54,8 +54,10 @@ import java.util.Locale
 
 private val DAY = DateTimeFormatter.ofPattern("d MMMM, EEEE", Locale.forLanguageTag("ru"))
 private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("ru"))
+// LLLL — название месяца в именительном падеже: «сентябрь»
+private val MONTH = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.forLanguageTag("ru"))
 
-/** Отчёты и анализ (ТЗ 17.10): отчёты владельца телефона — итоги дня и недели. */
+/** Отчёты и анализ (ТЗ 17.10): отчёты владельца телефона — итоги дня, недели и месяца. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewModel()) {
@@ -88,7 +90,7 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
                     Tab(
                         selected = kind == state.kind,
                         onClick = { viewModel.selectKind(kind) },
-                        text = { Text(if (kind == ReportKind.DAY) "День" else "Неделя") },
+                        text = { Text(kind.label) },
                     )
                 }
             }
@@ -97,7 +99,11 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад")
                 }
                 Text(
-                    if (state.kind == ReportKind.DAY) dayTitle(state.date) else weekTitle(state.date),
+                    when (state.kind) {
+                        ReportKind.DAY -> dayTitle(state.date)
+                        ReportKind.WEEK -> weekTitle(state.date)
+                        ReportKind.MONTH -> monthTitle(state.date)
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f),
@@ -144,6 +150,16 @@ private fun weekTitle(monday: LocalDate): String {
         "${SHORT_DATE.format(monday)} – ${SHORT_DATE.format(sunday)}"
     }
     return prefix + range
+}
+
+private fun monthTitle(first: LocalDate): String {
+    val thisMonth = LocalDate.now().withDayOfMonth(1)
+    val name = MONTH.format(first).replaceFirstChar { it.uppercase() }
+    return when (first) {
+        thisMonth -> "Этот месяц, $name"
+        thisMonth.minusMonths(1) -> "Прошлый месяц, $name"
+        else -> name
+    }
 }
 
 @Composable

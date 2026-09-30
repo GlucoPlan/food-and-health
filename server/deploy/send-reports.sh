@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Отправить отчёты в Telegram сейчас (ТЗ 17.7). Уже отправленное повторно не уходит.
 #
-#   sudo bash server/deploy/send-reports.sh [--date ГГГГ-ММ-ДД] [--week] [--force]
+#   sudo bash server/deploy/send-reports.sh [--date ГГГГ-ММ-ДД] [--week | --month] [--force]
 #
-# --week — только недельный отчёт; --force — отправить заново уже отправленные.
+# --week / --month — только недельный / месячный; --force — отправить заново уже отправленные.
 set -euo pipefail
 # shellcheck source=common.sh
 source "$(dirname "$0")/common.sh"

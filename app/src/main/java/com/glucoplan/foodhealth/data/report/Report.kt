@@ -31,7 +31,7 @@ data class ReportSection(val title: String, val lines: List<ReportLine>)
 class ReportImage(val id: String, val title: String, val png: ByteArray)
 
 /** Вид отчёта; [code] — путь на сервере /reports/{code}. */
-enum class ReportKind(val code: String) { DAY("day"), WEEK("week") }
+enum class ReportKind(val code: String, val label: String) { DAY("day", "День"), WEEK("week", "Неделя"), MONTH("month", "Месяц") }
 
 /**
  * Отчёт, собранный сервером (ТЗ 17.5, 17.6): выжимка, подробности, графики.

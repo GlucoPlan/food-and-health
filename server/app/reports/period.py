@@ -12,18 +12,27 @@ from ..norms import NUTRIENTS
 from ..nutrition import ZERO, Nutrients, num
 from ..report_settings import ReportSettings
 from .daily import BODY_PARTS, DEFICIT_SHARE, EXCESS_CODES, HIGH_KCAL_SHARE, LOW_KCAL_SHARE, SLEEP_QUALITY
-from .text import MONTHS, SHORT_WEEKDAYS, B, duration, fmt, line, percent, section, signed
+from .text import MONTHS, MONTHS_NOMINATIVE, SHORT_WEEKDAYS, B, duration, fmt, line, percent, section, signed
 
 QUALITY_SCORE = {"bad": 1, "normal": 2, "good": 3}
 SCORE_LABEL = {1: "плохо", 2: "нормально", 3: "хорошо"}
 MIN_PACE_DAYS = 3  # темп веса считается, если между первым и последним взвешиванием хотя бы 3 дня
-TOP_PRODUCTS = 10
+TOP_PRODUCTS = {"week": 10, "month": 15}
 TOP_KCAL = 5
 
 
 def week_of(day: date) -> tuple[date, date]:
     start = day - timedelta(days=day.weekday())
     return start, start + timedelta(days=6)
+
+
+def month_of(day: date) -> tuple[date, date]:
+    first = day.replace(day=1)
+    return first, (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+
+
+def month_title(first: date) -> str:
+    return f"{MONTHS_NOMINATIVE[first.month - 1]} {first.year}"
 
 
 def period_title(first: date, last: date) -> str:
@@ -186,7 +195,8 @@ def build(family: Family, profile: dict, first: date, last: date, settings: Repo
 
     report = {
         "kind": kind, "date": first.isoformat(), "last": last.isoformat(), "profile_id": profile["id"],
-        "profile_name": profile.get("name", ""), "title": period_title(first, last),
+        "profile_name": profile.get("name", ""),
+        "title": month_title(first) if kind == "month" else period_title(first, last),
         "incomplete": len(st.food) < len(st.days) / 2, "empty": False,
         "summary": [], "sections": [], "images": [],
     }
@@ -196,7 +206,7 @@ def build(family: Family, profile: dict, first: date, last: date, settings: Repo
         report["summary"] = [line("Ничего не записано", style="muted")]
         return report
 
-    summary = [line(f"Еда записана в {len(st.food)} днях из {len(st.days)}",
+    summary = [line(f"Еда записана в {_in_days(len(st.food))} из {len(st.days)}",
                     style="warn" if report["incomplete"] else "normal")]
     if sd1 and st.food:
         summary.append(line(B(f"Углеводы в день: {fmt(st.avg.carbs, 0)} г"),
@@ -208,6 +218,8 @@ def build(family: Family, profile: dict, first: date, last: date, settings: Repo
     report["summary"] = summary
 
     sections = []
+    if kind == "month":
+        sections.append(section("По неделям", _week_lines(st)))
     if st.food:
         sections.append(section("Питание по дням", _day_lines(st)))
     if sd1 and st.slots:
@@ -223,7 +235,7 @@ def build(family: Family, profile: dict, first: date, last: date, settings: Repo
         sections.append(section("Вода", _water_lines(st)))
     if st.food:
         sections.append(section("Витамины и минералы", _micro_lines(st)))
-        sections.append(section("Частые продукты и блюда", _top_lines(st)))
+        sections.append(section("Частые продукты и блюда", _top_lines(st, TOP_PRODUCTS[kind])))
     body = _body_lines(st)
     if body:
         sections.append(section("Обхваты", body))
@@ -278,6 +290,35 @@ def _plural(n: int, one: str, few: str, many: str) -> str:
 
 def _days(n: int) -> str:
     return _plural(n, "день", "дня", "дней")
+
+
+def _in_days(n: int) -> str:
+    """«в 1 дне», «в 21 дне», «в 5 днях», «в 11 днях»."""
+    return f"{n} дне" if n % 10 == 1 and n % 100 != 11 else f"{n} днях"
+
+
+def _week_lines(st: Stats) -> list[dict]:
+    """Месяц по неделям (ТЗ 17.6): неделя на стыке месяцев — только дни этого месяца."""
+    lines = []
+    chunks: list[list[date]] = []
+    for d in st.days:
+        if not chunks or d.weekday() == 0:
+            chunks.append([])
+        chunks[-1].append(d)
+    for chunk in chunks:
+        title = f"{chunk[0].day:02d}.{chunk[0].month:02d}–{chunk[-1].day:02d}.{chunk[-1].month:02d}"
+        parts = []
+        food = [st.food[d].kcal for d in chunk if d in st.food]
+        parts.append(f"{fmt(sum(food) / len(food), 0)} ккал в день" if food else "еда не записана")
+        weights = [st.weights[d] for d in chunk if d in st.weights]
+        if weights:
+            parts.append(f"вес {fmt(weights[0])}" if len(weights) == 1 else f"вес {fmt(weights[0])} → {fmt(weights[-1])}")
+        sleeps = [st.sleeps[d] for d in chunk if d in st.sleeps]
+        if sleeps:
+            avg = sum((s["woke_at"] - s["asleep_at"]) / 60000 for s in sleeps) / len(sleeps)
+            parts.append(f"сон {duration(round(avg))}")
+        lines.append(line(B(title), " — " + ", ".join(parts)))
+    return lines
 
 
 def _weight_summary(profile: dict, st: Stats, prev: Stats, word: str) -> list[dict]:
@@ -414,8 +455,8 @@ def _micro_lines(st: Stats) -> list[dict]:
     return lines
 
 
-def _top_lines(st: Stats) -> list[dict]:
-    lines = [line(B("Чаще всего: "), ", ".join(f"{name} — {_times(n)}" for name, n in st.items.most_common(TOP_PRODUCTS)))]
+def _top_lines(st: Stats, top: int) -> list[dict]:
+    lines = [line(B("Чаще всего: "), ", ".join(f"{name} — {_times(n)}" for name, n in st.items.most_common(top)))]
     total = sum(st.item_kcal.values())
     if total > 0:
         lines.append(line(B("Больше всего калорий: "), ", ".join(

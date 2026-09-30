@@ -144,6 +144,20 @@ class ReportTest {
     }
 
     @Test
+    fun `месяц по умолчанию — прошлый, листание не сбивает число`() {
+        val today = LocalDate.of(2026, 9, 30)
+        assertThat(ReportDates.default(ReportKind.MONTH, today)).isEqualTo(LocalDate.of(2026, 8, 1))
+        assertThat(ReportDates.default(ReportKind.MONTH, LocalDate.of(2026, 1, 15))).isEqualTo(LocalDate.of(2025, 12, 1))
+        // С 31 января — на 1 февраля и обратно на 1 января, а не на 28 или 31
+        val jan31 = LocalDate.of(2026, 1, 31)
+        val feb = ReportDates.step(ReportKind.MONTH, jan31, forward = true)
+        assertThat(feb).isEqualTo(LocalDate.of(2026, 2, 1))
+        assertThat(ReportDates.step(ReportKind.MONTH, feb, forward = false)).isEqualTo(LocalDate.of(2026, 1, 1))
+        assertThat(ReportDates.canGoForward(ReportKind.MONTH, LocalDate.of(2026, 8, 1), today)).isTrue()
+        assertThat(ReportDates.canGoForward(ReportKind.MONTH, LocalDate.of(2026, 9, 1), today)).isFalse()
+    }
+
+    @Test
     fun `картинки отчёта разбираются, у дневного их нет`() {
         assertThat(ReportJson.parse(sample).images).isEmpty()
         val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)

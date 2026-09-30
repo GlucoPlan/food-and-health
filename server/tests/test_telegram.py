@@ -265,3 +265,27 @@ def test_диагностика_видит_записи_дня(store):
     assert "meal: 1 (удалённых 0)" in text
     assert "Профиль «Дочь»" in text
     assert "meal: всего 1, за день 1, последняя 29.09 08:00" in text
+
+
+def test_одна_картинка_фото_несколько_альбомом_по_10():
+    calls = []
+
+    def post(url, payload, files=None):
+        calls.append((url.rsplit("/", 1)[1], sorted(files or {})))
+        return 200, {"ok": True, "result": {}}
+
+    Bot("t", post=post).send_photos(1, [("Вес", b"png")])
+    assert calls == [("sendPhoto", ["photo"])]
+    calls.clear()
+    Bot("t", post=post).send_photos(1, [(f"г{i}", b"png") for i in range(11)])
+    assert [c[0] for c in calls] == ["sendMediaGroup", "sendPhoto"]
+    assert len(calls[0][1]) == 10
+
+
+def test_multipart_собирается_с_файлами():
+    from app.telegram import _multipart
+    body, content_type = _multipart({"chat_id": "1", "media": [{"type": "photo"}]}, {"p0": ("c.png", b"\x89PNG")})
+    boundary = content_type.split("boundary=")[1]
+    assert body.startswith(f"--{boundary}\r\n".encode()) and body.endswith(f"--{boundary}--\r\n".encode())
+    assert b'name="media"\r\n\r\n[{"type": "photo"}]' in body
+    assert b'filename="c.png"' in body and b"\x89PNG" in body

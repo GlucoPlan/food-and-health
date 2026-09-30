@@ -1,9 +1,10 @@
 """Утренняя рассылка отчётов в Telegram (ТЗ 17.5–17.7). Запускается таймером в 6:00 по Москве.
 
-    python -m app.send_reports [--date ГГГГ-ММ-ДД] [--week] [--force]
+    python -m app.send_reports [--date ГГГГ-ММ-ДД] [--week | --month] [--force]
 
-Без параметров — итоги вчерашнего дня, а по понедельникам ещё и прошлой недели.
---date — за другой день; --week — только недельный (за неделю с --date, иначе за прошлую полную).
+Без параметров — итоги вчерашнего дня, по понедельникам ещё и прошлой недели, 1-го числа — прошлого месяца.
+--date — за другой день; --week / --month — только недельный / месячный (за период с --date,
+иначе за прошлый полный).
 Отправленное запоминается в telegram-sent.json в папке данных: повторный запуск не шлёт дубли,
 --force — отправить заново. Если Telegram недоступен — ещё две попытки, через 5 и 20 минут.
 """
@@ -53,17 +54,25 @@ def week_job(day: date) -> Job:
     return Job("week", *period.week_of(day))
 
 
+def month_job(day: date) -> Job:
+    return Job("month", *period.month_of(day))
+
+
 def today() -> date:
     return datetime.now(MSK).date()
 
 
-def default_jobs(day: date | None, week_only: bool) -> list[Job]:
+def default_jobs(day: date | None, week_only: bool = False, month_only: bool = False) -> list[Job]:
     if week_only:
         return [week_job(day or today() - timedelta(days=7))]
+    if month_only:
+        return [month_job(day or today().replace(day=1) - timedelta(days=1))]
     day = day or today() - timedelta(days=1)
     jobs = [day_job(day)]
     if day.weekday() == 6:  # воскресенье — неделя закончилась
         jobs.append(week_job(day))
+    if (day + timedelta(days=1)).day == 1:  # последний день месяца
+        jobs.append(month_job(day))
     return jobs
 
 
@@ -154,7 +163,9 @@ def send_daily(store: Store, recipients: list[Recipient], bot: Bot, day: date, s
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.send_reports")
     parser.add_argument("--date", type=date.fromisoformat, help="день отчёта; по умолчанию вчера по Москве")
-    parser.add_argument("--week", action="store_true", help="только недельный отчёт")
+    only = parser.add_mutually_exclusive_group()
+    only.add_argument("--week", action="store_true", help="только недельный отчёт")
+    only.add_argument("--month", action="store_true", help="только месячный отчёт")
     parser.add_argument("--force", action="store_true", help="отправить и уже отправленные отчёты")
     parser.add_argument("--config", type=Path,
                         default=Path(os.environ.get("FH_TELEGRAM_CONFIG", "/etc/foodhealth/telegram.json")))
@@ -167,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     data_dir = Path(os.environ.get("FH_DATA_DIR", "data")).resolve()
     settings = report_settings.load(Path(os.environ.get("FH_REPORTS_CONFIG", "/etc/foodhealth/reports.json")))
-    failed = send(Store(data_dir / "fh.db"), recipients, Bot(token), default_jobs(args.date, args.week),
+    failed = send(Store(data_dir / "fh.db"), recipients, Bot(token), default_jobs(args.date, args.week, args.month),
                   data_dir / SENT_FILE, settings=settings, force=args.force)
     return 1 if failed else 0
 

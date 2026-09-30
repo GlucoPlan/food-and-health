@@ -1,4 +1,4 @@
-"""API сервера «Еда и здоровье» (ТЗ 9, 17): /health, /sync, /photos, /reports/day, /reports/week.
+"""API сервера «Еда и здоровье» (ТЗ 9, 17): /health, /sync, /photos, /reports/day, /reports/week, /reports/month.
 
 Каждый запрос — с заголовком X-Family-Key, без него 401.
 """
@@ -110,5 +110,15 @@ def create_app(settings: config.Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Профиль не найден")
         first, last = period.week_of(date_)
         return period.build(family, profile, first, last, report_settings.load(settings.reports_config))
+
+    @app.get("/reports/month")
+    def report_month(profile_id: str, date_: Annotated[date, Query(alias="date")]) -> dict:
+        """Месячный отчёт (ТЗ 17.6) за месяц с [date] — любым его днём; с графиками."""
+        family = Family(store.records(REPORT_TABLES))
+        profile = family.profiles.get(profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="Профиль не найден")
+        first, last = period.month_of(date_)
+        return period.build(family, profile, first, last, report_settings.load(settings.reports_config), kind="month")
 
     return app

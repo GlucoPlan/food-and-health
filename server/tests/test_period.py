@@ -203,3 +203,82 @@ def test_недельный_в_telegram_текст_и_альбом_без_дуб
 
     send(store, who, Bot("t", post=post), jobs, tmp_path / "sent.json", log=lambda _: None)
     assert len(tg.sent) == 2 and len(photos) == 1
+
+
+# ---------- месяц ----------
+
+def month(client, profile_id=ME, day=date(2026, 9, 15)) -> dict:
+    r = client.get("/reports/month", params={"profile_id": profile_id, "date": day.isoformat()})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_границы_месяца():
+    assert period.month_of(date(2026, 9, 15)) == (date(2026, 9, 1), date(2026, 9, 30))
+    assert period.month_of(date(2026, 12, 31)) == (date(2026, 12, 1), date(2026, 12, 31))
+    assert period.month_of(date(2026, 2, 10)) == (date(2026, 2, 1), date(2026, 2, 28))
+    assert period.month_of(date(2028, 2, 10)) == (date(2028, 2, 1), date(2028, 2, 29))
+    assert period.month_title(date(2026, 9, 1)) == "Сентябрь 2026"
+
+
+def test_месяц_сравнение_с_прошлым_и_по_неделям(me):
+    food(me, date(2026, 8, 20), 1500)
+    food(me, date(2026, 9, 1), 2000)
+    food(me, date(2026, 9, 2), 2400)
+    food(me, date(2026, 9, 30), 1900)
+    put(me, weight("a", date(2026, 9, 2), 95.0), weight("b", date(2026, 9, 6), 94.4),
+        weight("c", date(2026, 9, 30), 93.0))
+    rep = month(me)
+    assert rep["title"] == "Сентябрь 2026"
+    s = summary(rep)
+    assert s[0] == "Еда записана в 3 днях из 30"
+    # Норма — средняя по дням с едой: к 30-му вес 93 кг, и норма ниже (2356, 2356, 2325)
+    assert "Калории в среднем: 2100 из 2346 (90 %) · ↑600 к прошлому месяцу" in s
+    # 1 сентября 2026 — вторник: первая неделя 01–06, последняя — только 28–30
+    weeks = section(rep, "По неделям")
+    assert weeks[0] == "01.09–06.09 — 2200 ккал в день, вес 95 → 94,4"
+    assert weeks[1] == "07.09–13.09 — еда не записана"
+    assert weeks[-1] == "28.09–30.09 — 1900 ккал в день, вес 93"
+    assert len(weeks) == 5
+    assert len(section(rep, "Питание по дням")) == 30
+
+
+def test_месяц_топ_15(me):
+    names = [f"p{i}" for i in range(20)]
+    put(me, *[product(n, f"Продукт {i:02d}", 100, 1, 1, 1) for i, n in enumerate(names)])
+    for i, n in enumerate(names):
+        for k in range(20 - i):
+            food(me, date(2026, 9, 1) + timedelta(days=k), 100, hm=f"{8 + i // 6:02d}:{(i % 6) * 10:02d}", name=n)
+    top = section(month(me), "Частые продукты и блюда")[0]
+    assert top.count(" — ") == 15
+    assert "Продукт 00 — 20 раз" in top and "Продукт 14" in top and "Продукт 15" not in top
+
+
+def test_месячный_в_рассылке():
+    kinds = [j.kind for j in default_jobs(date(2026, 9, 30))]
+    assert kinds == ["day", "month"]
+    # 31 мая 2026 — воскресенье: и неделя, и месяц — по порядку
+    assert [j.kind for j in default_jobs(date(2026, 5, 31))] == ["day", "week", "month"]
+    assert [j.kind for j in default_jobs(date(2026, 9, 15))] == ["day"]
+    assert default_jobs(date(2026, 9, 15), month_only=True) == [Job("month", date(2026, 9, 1), date(2026, 9, 30))]
+
+
+def test_месячный_в_telegram(me, settings, tmp_path):
+    food(me, date(2026, 9, 1), 2000)
+    tg = FakeTelegram()
+    photos = []
+
+    def post(url, payload, files=None):
+        if url.endswith("sendPhoto"):
+            photos.append(payload["caption"])
+            return 200, {"ok": True, "result": {}}
+        if url.endswith("sendMediaGroup"):
+            photos.extend(m["caption"] for m in payload["media"])
+            return 200, {"ok": True, "result": []}
+        return tg.post(url, payload, files)
+
+    jobs = [Job("month", date(2026, 9, 1), date(2026, 9, 30))]
+    assert send(Store(settings.db_path), [Recipient(1, "Иван", (ME,))], Bot("t", post=post), jobs,
+                tmp_path / "sent.json", log=lambda _: None) == 0
+    assert tg.sent[0][1].startswith("<b>Итоги месяца · Я · Сентябрь 2026</b>")
+    assert photos == ["Вес", "Калории"]  # взвешивание 1 сентября из фикстуры и еда

@@ -22,22 +22,29 @@ import javax.inject.Inject
 
 /**
  * Выбор периода отчёта (ТЗ 17.10). День: по умолчанию вчера, вперёд — до сегодня.
- * Неделя (с понедельника): по умолчанию прошлая полная, вперёд — до текущей.
+ * Неделя (с понедельника) и месяц: по умолчанию прошлые полные, вперёд — до текущих.
+ * Дата недели — её понедельник, месяца — 1-е число: листание не сбивает день месяца.
  */
 object ReportDates {
     fun default(kind: ReportKind, today: LocalDate): LocalDate = when (kind) {
         ReportKind.DAY -> today.minusDays(1)
         ReportKind.WEEK -> weekStart(today).minusWeeks(1)
+        ReportKind.MONTH -> today.withDayOfMonth(1).minusMonths(1)
     }
 
     fun canGoForward(kind: ReportKind, date: LocalDate, today: LocalDate): Boolean = when (kind) {
         ReportKind.DAY -> date < today
         ReportKind.WEEK -> date < weekStart(today)
+        ReportKind.MONTH -> date < today.withDayOfMonth(1)
     }
 
     fun step(kind: ReportKind, date: LocalDate, forward: Boolean): LocalDate {
-        val days = if (kind == ReportKind.DAY) 1L else 7L
-        return if (forward) date.plusDays(days) else date.minusDays(days)
+        val sign = if (forward) 1L else -1L
+        return when (kind) {
+            ReportKind.DAY -> date.plusDays(sign)
+            ReportKind.WEEK -> date.plusWeeks(sign)
+            ReportKind.MONTH -> date.withDayOfMonth(1).plusMonths(sign)
+        }
     }
 
     fun weekStart(date: LocalDate): LocalDate = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -45,7 +52,7 @@ object ReportDates {
 
 data class ReportsState(
     val kind: ReportKind = ReportKind.DAY,
-    /** Выбранный день или понедельник выбранной недели. */
+    /** Выбранный день, понедельник выбранной недели или 1-е число выбранного месяца. */
     val date: LocalDate,
     val canGoForward: Boolean = true,
     val loading: Boolean = false,
