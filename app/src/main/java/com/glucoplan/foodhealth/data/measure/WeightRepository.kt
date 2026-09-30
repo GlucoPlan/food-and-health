@@ -39,9 +39,11 @@ class WeightRepository @Inject constructor(
     ): MeasureSave {
         val kg = MeasureInput.number(text, MIN_KG, MAX_KG, fraction = 1)
         val measuredAt = at ?: now
-        val valueError = if (kg == null) "Вес от ${MIN_KG.toInt()} до ${MAX_KG.toInt()} кг" else null
-        val timeError = MeasureInput.timeError(measuredAt, now)
-        if (kg == null || timeError != null) return MeasureSave.Invalid(valueError, timeError)
+        val errors = buildMap {
+            if (kg == null) put(FIELD_KG, "Вес от ${MIN_KG.toInt()} до ${MAX_KG.toInt()} кг")
+            MeasureInput.timeError(measuredAt, now)?.let { put(MeasureSave.TIME, it) }
+        }
+        if (kg == null || errors.isNotEmpty()) return MeasureSave.Invalid(errors)
 
         val existing = id?.let { dao.getById(it) }
         dao.upsert(
@@ -70,5 +72,6 @@ class WeightRepository @Inject constructor(
         const val MIN_KG = 2.0
         const val MAX_KG = 300.0
         const val RECENT = 5
+        const val FIELD_KG = "kg"
     }
 }

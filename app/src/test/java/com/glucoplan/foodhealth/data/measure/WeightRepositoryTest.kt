@@ -86,8 +86,7 @@ class WeightRepositoryTest {
     @Test
     fun `ошибки — ничего не пишется`() = runTest {
         val r = repo.save(null, "me", "1", now + 24 * hour, now) as MeasureSave.Invalid
-        assertThat(r.valueError).isNotNull()
-        assertThat(r.timeError).isNotNull()
+        assertThat(r.errors.keys).containsExactly(WeightRepository.FIELD_KG, MeasureSave.TIME)
         assertThat(repo.latest("me")).isNull()
     }
 

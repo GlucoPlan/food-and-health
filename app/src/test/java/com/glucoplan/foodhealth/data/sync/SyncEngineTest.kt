@@ -278,4 +278,18 @@ class SyncEngineTest {
         a.engine.sync(); b.engine.sync()
         assertThat(bw.latest("me")).isNull()
     }
+
+    @Test
+    fun `давление доходит до другого телефона, в том числе без пульса`() = runTest {
+        val a = phone("a")
+        val b = phone("b")
+        val ap = com.glucoplan.foodhealth.data.measure.BloodPressureRepository(a.db.bloodPressureDao(), a.prefs)
+        val bp = com.glucoplan.foodhealth.data.measure.BloodPressureRepository(b.db.bloodPressureDao(), b.prefs)
+
+        ap.save(null, "wife", "118", "76", "", null)
+        a.engine.sync(); b.engine.sync()
+        val got = bp.observeRecent("wife").first().single()
+        assertThat(got.text).isEqualTo("118/76")
+        assertThat(got.pulse).isNull()
+    }
 }

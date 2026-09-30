@@ -3,7 +3,10 @@ package com.glucoplan.foodhealth.ui.measure
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.glucoplan.foodhealth.data.NumberText
+import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
 import com.glucoplan.foodhealth.data.measure.MeasureSave
+import com.glucoplan.foodhealth.data.measure.PressureRecord
 import com.glucoplan.foodhealth.data.measure.WeightRecord
 import com.glucoplan.foodhealth.data.measure.WeightRepository
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
@@ -26,15 +29,20 @@ data class MeasuresUi(
     val loaded: Boolean = false,
     val profiles: List<Profile> = emptyList(),
     val profileId: String? = null,
-    /** Последние записи веса выбранного человека, новые сверху. */
+    /** Последние записи выбранного человека, новые сверху. */
     val weights: List<WeightRecord> = emptyList(),
+    val pressures: List<PressureRecord> = emptyList(),
 )
 
-/** Диалог веса: новая запись ([record] = null) или правка существующей. */
-data class WeightDialogState(
-    val record: WeightRecord? = null,
-    val valueError: String? = null,
-    val timeError: String? = null,
+enum class MeasureKind { WEIGHT, PRESSURE }
+
+/** Открытый диалог замера: новая запись ([editingId] = null) или правка. */
+data class MeasureDialogState(
+    val kind: MeasureKind,
+    val editingId: String? = null,
+    val initial: List<String>,
+    val initialAt: Long? = null,
+    val errors: Map<String, String> = emptyMap(),
 )
 
 /** Экран «Замеры» (ТЗ 15.4): кому, виды замеров, ввод. */
@@ -45,6 +53,7 @@ class MeasuresViewModel @Inject constructor(
     profiles: ProfileRepository,
     devicePrefs: DevicePrefs,
     private val weights: WeightRepository,
+    private val pressures: BloodPressureRepository,
 ) : ViewModel() {
 
     /** null — тот, кто выбран на экране приёма пищи (аргумент), иначе владелец. */
@@ -55,12 +64,14 @@ class MeasuresViewModel @Inject constructor(
     }
 
     val state: StateFlow<MeasuresUi> = profileState.flatMapLatest { (list, profileId) ->
-        val recent = profileId?.let { weights.observeRecent(it) } ?: flowOf(emptyList())
-        combine(flowOf(list), recent) { l, w -> MeasuresUi(true, l, profileId, w) }
+        if (profileId == null) return@flatMapLatest flowOf(MeasuresUi(true, list, null))
+        combine(weights.observeRecent(profileId), pressures.observeRecent(profileId)) { w, p ->
+            MeasuresUi(true, list, profileId, w, p)
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasuresUi())
 
-    private val _weightDialog = MutableStateFlow<WeightDialogState?>(null)
-    val weightDialog: StateFlow<WeightDialogState?> = _weightDialog.asStateFlow()
+    private val _dialog = MutableStateFlow<MeasureDialogState?>(null)
+    val dialog: StateFlow<MeasureDialogState?> = _dialog.asStateFlow()
 
     private val _recorded = MutableStateFlow<String?>(null)
 
@@ -71,39 +82,64 @@ class MeasuresViewModel @Inject constructor(
         chosen.value = id
     }
 
-    fun newWeight() {
-        _weightDialog.value = WeightDialogState()
+    fun newMeasure(kind: MeasureKind) {
+        _dialog.value = MeasureDialogState(
+            kind,
+            initial = when (kind) {
+                MeasureKind.WEIGHT -> listOf("")
+                MeasureKind.PRESSURE -> listOf("", "", "")
+            },
+        )
     }
 
-    fun editWeight(record: WeightRecord) {
-        _weightDialog.value = WeightDialogState(record)
-    }
-
-    fun dismissWeight() {
-        _weightDialog.value = null
-    }
-
-    /** [at] null — «сейчас». */
-    fun saveWeight(text: String, at: Long?) {
-        val dialog = _weightDialog.value ?: return
-        val profileId = state.value.profileId ?: return
-        viewModelScope.launch {
-            when (val r = weights.save(dialog.record?.id, profileId, text, at)) {
-                is MeasureSave.Saved -> {
-                    _weightDialog.value = null
-                    // Новая запись — вернуться к еде; правка — остаться в списке
-                    if (dialog.record == null) _recorded.value = r.message
-                }
-                is MeasureSave.Invalid -> _weightDialog.value = dialog.copy(valueError = r.valueError, timeError = r.timeError)
+    fun edit(kind: MeasureKind, id: String) {
+        val s = state.value
+        _dialog.value = when (kind) {
+            MeasureKind.WEIGHT -> s.weights.firstOrNull { it.id == id }?.let {
+                MeasureDialogState(kind, id, listOf(NumberText.format(it.kg, 1)), it.measuredAt)
+            }
+            MeasureKind.PRESSURE -> s.pressures.firstOrNull { it.id == id }?.let {
+                MeasureDialogState(
+                    kind, id, listOf(it.systolic.toString(), it.diastolic.toString(), it.pulse?.toString().orEmpty()),
+                    it.measuredAt,
+                )
             }
         }
     }
 
-    fun deleteWeight() {
-        val id = _weightDialog.value?.record?.id ?: return
+    fun dismiss() {
+        _dialog.value = null
+    }
+
+    /** [at] null — «сейчас». */
+    fun save(values: List<String>, at: Long?) {
+        val dialog = _dialog.value ?: return
+        val profileId = state.value.profileId ?: return
         viewModelScope.launch {
-            weights.delete(id)
-            _weightDialog.value = null
+            val result = when (dialog.kind) {
+                MeasureKind.WEIGHT -> weights.save(dialog.editingId, profileId, values[0], at)
+                MeasureKind.PRESSURE -> pressures.save(dialog.editingId, profileId, values[0], values[1], values[2], at)
+            }
+            when (result) {
+                is MeasureSave.Saved -> {
+                    _dialog.value = null
+                    // Новая запись — вернуться к еде (15.4); правка — остаться в списке
+                    if (dialog.editingId == null) _recorded.value = result.message
+                }
+                is MeasureSave.Invalid -> _dialog.value = dialog.copy(errors = result.errors)
+            }
+        }
+    }
+
+    fun delete() {
+        val dialog = _dialog.value ?: return
+        val id = dialog.editingId ?: return
+        viewModelScope.launch {
+            when (dialog.kind) {
+                MeasureKind.WEIGHT -> weights.delete(id)
+                MeasureKind.PRESSURE -> pressures.delete(id)
+            }
+            _dialog.value = null
         }
     }
 

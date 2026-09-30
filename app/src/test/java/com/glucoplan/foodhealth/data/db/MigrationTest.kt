@@ -269,4 +269,31 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 7 — давление, курсор сброшен, вес на месте`() = runTest {
+        createDatabase(7) { db ->
+            db.execSQL(
+                "INSERT INTO weight (id, profile_id, measured_at, weight_kg, updated_at, deleted, device_id) " +
+                    "VALUES ('w', 'p1', 1, 84.2, 1, 0, 'dev')"
+            )
+            db.execSQL("INSERT OR REPLACE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 60, 1)")
+        }
+
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertThat(db.weightDao().latest("p1")!!.weightKg).isEqualTo(84.2)
+            assertThat(db.syncDao().state()!!.cursor).isEqualTo(0)
+
+            db.bloodPressureDao().upsert(BloodPressureEntity("bp", "p1", 2L, 120, 80, null, 2L, false, "dev"))
+            assertThat(db.bloodPressureDao().getById("bp")!!.pulse).isNull()
+            assertThat(db.syncDao().outbox().map { it.tbl to it.id }).contains("blood_pressure" to "bp")
+        } finally {
+            db.close()
+        }
+    }
 }

@@ -17,6 +17,9 @@ object MeasureInput {
         return rounded.takeIf { it in min..max }
     }
 
+    /** Целое число в границах; дробное или не число — null. */
+    fun integer(text: String, min: Int, max: Int): Int? = text.trim().toIntOrNull()?.takeIf { it in min..max }
+
     /** Ошибка времени замера или null. */
     fun timeError(at: Long, now: Long): String? = if (at > now + CLOCK_SLACK_MS) "Время в будущем" else null
 }
@@ -25,5 +28,11 @@ object MeasureInput {
 sealed interface MeasureSave {
     /** [message] — для сообщения «Записано: …». */
     data class Saved(val message: String) : MeasureSave
-    data class Invalid(val valueError: String?, val timeError: String?) : MeasureSave
+
+    /** Ошибки по полям; время — под ключом [TIME]. */
+    data class Invalid(val errors: Map<String, String>) : MeasureSave
+
+    companion object {
+        const val TIME = "time"
+    }
 }

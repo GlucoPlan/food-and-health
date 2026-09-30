@@ -30,4 +30,13 @@ class MeasureInputTest {
         assertThat(MeasureInput.timeError(now + 30_000, now)).isNull()
         assertThat(MeasureInput.timeError(now + 3_600_000, now)).isNotNull()
     }
+
+    @Test
+    fun `целое число — дробное и мусор не принимаются`() {
+        assertThat(MeasureInput.integer("120", 50, 260)).isEqualTo(120)
+        assertThat(MeasureInput.integer(" 80 ", 30, 160)).isEqualTo(80)
+        assertThat(MeasureInput.integer("120,5", 50, 260)).isNull()
+        assertThat(MeasureInput.integer("49", 50, 260)).isNull()
+        assertThat(MeasureInput.integer("", 50, 260)).isNull()
+    }
 }

@@ -3,6 +3,7 @@ package com.glucoplan.foodhealth.di
 import android.content.Context
 import androidx.room.Room
 import com.glucoplan.foodhealth.data.db.ALL_MIGRATIONS
+import com.glucoplan.foodhealth.data.db.BloodPressureDao
 import com.glucoplan.foodhealth.data.db.AppDatabase
 import com.glucoplan.foodhealth.data.db.DatabaseGuard
 import com.glucoplan.foodhealth.data.db.DishDao
@@ -60,4 +61,7 @@ object DatabaseModule {
 
     @Provides
     fun provideWeightDao(db: AppDatabase): WeightDao = db.weightDao()
+
+    @Provides
+    fun provideBloodPressureDao(db: AppDatabase): BloodPressureDao = db.bloodPressureDao()
 }
