@@ -6,6 +6,12 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Сон из Health Connect (ТЗ 15.5): только чтение сна, по разрешению пользователя -->
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
@@ -26,6 +32,26 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Health Connect требует экран «зачем приложению доступ» -->
+        <activity
+            android:name=".ui.health.PermissionsRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <!-- То же для Android 14+ (Health Connect встроен в систему) -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity=".ui.health.PermissionsRationaleActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- WorkManager настраивается в FoodHealthApp (Hilt создаёт SyncWorker) -->
         <provider

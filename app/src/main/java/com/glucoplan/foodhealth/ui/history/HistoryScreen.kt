@@ -211,7 +211,8 @@ private val HM = SimpleDateFormat("HH:mm", Locale.getDefault())
 /** «Сон 23:40 → 07:15, 7 ч 35 мин · хорошо». */
 private fun sleepText(s: SleepRecord): String =
     "Сон ${HM.format(Date(s.asleepAt))} → ${HM.format(Date(s.wokeAt))}, ${SleepTime.durationText(s.minutes)}" +
-        (s.quality?.let { " · ${it.label.lowercase()}" } ?: "")
+        (s.quality?.let { " · ${it.label.lowercase()}" } ?: "") +
+        (if (s.source == com.glucoplan.foodhealth.data.measure.SleepRepository.SOURCE_HEALTH_CONNECT) " · Health Connect" else "")
 
 @Composable
 private fun MealCard(meal: HistoryMeal, sd1: Profile?, onClick: () -> Unit) {

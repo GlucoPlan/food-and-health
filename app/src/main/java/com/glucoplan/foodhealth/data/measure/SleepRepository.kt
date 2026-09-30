@@ -72,6 +72,24 @@ class SleepRepository @Inject constructor(
         return MeasureSave.Saved("Записано: сон ${SleepTime.durationText(minutes)}")
     }
 
+    /** Ночь из Health Connect (15.5): источник и id сессии, без оценки. Проверки — в SleepImport. */
+    suspend fun import(profileId: String, asleepAt: Long, wokeAt: Long, externalId: String, now: Long = System.currentTimeMillis()) {
+        dao.upsert(
+            SleepEntity(
+                id = UUID.randomUUID().toString(),
+                profileId = profileId,
+                asleepAt = asleepAt,
+                wokeAt = wokeAt,
+                quality = null,
+                source = SOURCE_HEALTH_CONNECT,
+                externalId = externalId,
+                updatedAt = now,
+                deleted = false,
+                deviceId = devicePrefs.deviceId(),
+            )
+        )
+    }
+
     /** Мягкое удаление (5.1). */
     suspend fun delete(id: String) {
         val entity = dao.getById(id) ?: return

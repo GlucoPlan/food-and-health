@@ -25,6 +25,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
+import androidx.health.connect.client.PermissionController
+import com.glucoplan.foodhealth.data.health.HealthConnectSleep
+import com.glucoplan.foodhealth.data.measure.SleepRepository
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -57,6 +65,12 @@ fun MeasuresScreen(
     val sleepDialog by viewModel.sleepDialog.collectAsStateWithLifecycle()
     val recorded by viewModel.recorded.collectAsStateWithLifecycle()
     val closed by viewModel.closed.collectAsStateWithLifecycle()
+    val ownerId by viewModel.ownerId.collectAsStateWithLifecycle()
+    val importMessage by viewModel.importMessage.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val requestSleepPermission = rememberLauncherForActivityResult(
+        PermissionController.createRequestPermissionResultContract()
+    ) { granted -> if (HealthConnectSleep.READ_SLEEP in granted) viewModel.importSleep() }
 
     LaunchedEffect(closed) { if (closed) onBack() }
 
@@ -124,6 +138,23 @@ fun MeasuresScreen(
                 entries = state.sleeps.map { MeasureEntry(it.id, sleepLine(it)) },
                 onNew = viewModel::newSleep,
                 onEdit = viewModel::editSleep,
+                // Сон из Health Connect (15.5): только владельцу телефона и если Health Connect есть
+                extra = if (viewModel.healthConnectAvailable && state.profileId != null && state.profileId == ownerId) {
+                    @Composable {
+                        TextButton(onClick = {
+                            scope.launch {
+                                if (viewModel.needsSleepPermission()) {
+                                    requestSleepPermission.launch(setOf(HealthConnectSleep.READ_SLEEP))
+                                } else {
+                                    viewModel.importSleep()
+                                }
+                            }
+                        }) { Text("Из Health Connect") }
+                        importMessage?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } else null,
             )
             MeasureCard(
                 title = "Обхваты",
@@ -242,5 +273,6 @@ private fun sleepLine(s: SleepRecord): String {
     val asleep = HM.format(Instant.ofEpochMilli(s.asleepAt).atZone(zone))
     val woke = HM.format(Instant.ofEpochMilli(s.wokeAt).atZone(zone))
     return "$asleep → $woke, ${SleepTime.durationText(s.minutes)}" +
-        (s.quality?.let { " · ${it.label.lowercase()}" } ?: "") + " · ${shortDate(s.wokeAt)}"
+        (s.quality?.let { " · ${it.label.lowercase()}" } ?: "") + " · ${shortDate(s.wokeAt)}" +
+        (if (s.source == SleepRepository.SOURCE_HEALTH_CONNECT) " · Health Connect" else "")
 }

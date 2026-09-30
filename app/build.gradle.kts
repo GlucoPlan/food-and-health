@@ -148,6 +148,9 @@ dependencies {
     implementation(libs.camera.view)
     implementation(libs.mlkit.barcode.scanning)
 
+    // Сон из Health Connect (ТЗ 15.5, пробно)
+    implementation(libs.health.connect)
+
     // Фото кастрюль: миниатюры и поворот снимка по EXIF
     implementation(libs.coil.compose)
     implementation(libs.exifinterface)

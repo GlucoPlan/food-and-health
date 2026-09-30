@@ -38,6 +38,10 @@ interface SleepDao {
     @Query("SELECT * FROM sleep WHERE profile_id = :profileId AND deleted = 0")
     fun observeAll(profileId: String): Flow<List<SleepEntity>>
 
+    /** Сон профиля, закончившийся после [from], вместе с удалённым — для импорта из Health Connect. */
+    @Query("SELECT * FROM sleep WHERE profile_id = :profileId AND woke_at >= :from")
+    suspend fun since(profileId: String, from: Long): List<SleepEntity>
+
     @Query("SELECT * FROM sleep WHERE id = :id")
     suspend fun getById(id: String): SleepEntity?
 

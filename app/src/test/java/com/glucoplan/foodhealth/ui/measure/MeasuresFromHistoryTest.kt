@@ -7,6 +7,9 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.glucoplan.foodhealth.data.db.AppDatabase
+import com.glucoplan.foodhealth.data.health.SleepImporter
+import com.glucoplan.foodhealth.data.health.SleepSession
+import com.glucoplan.foodhealth.data.health.SleepSource
 import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
 import com.glucoplan.foodhealth.data.measure.BodyMeasureRepository
 import com.glucoplan.foodhealth.data.measure.SleepRepository
@@ -79,7 +82,15 @@ class MeasuresFromHistoryTest {
         sleeps,
         WaterRepository(db.waterDao(), weights, profiles, prefs),
         BodyMeasureRepository(db.bodyMeasureDao(), prefs),
+        SleepImporter(NoHealthConnect, db.sleepDao(), sleeps, prefs),
     )
+
+    /** Health Connect на «телефоне» нет. */
+    private object NoHealthConnect : SleepSource {
+        override fun available() = false
+        override suspend fun hasPermission() = false
+        override suspend fun sessions(from: Long, to: Long) = emptyList<SleepSession>()
+    }
 
     private suspend fun <T> Flow<T>.await(predicate: (T) -> Boolean): T =
         withContext(Dispatchers.Default) { withTimeout(5_000) { first(predicate) } }

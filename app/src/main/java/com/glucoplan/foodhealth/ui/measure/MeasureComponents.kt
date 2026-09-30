@@ -53,6 +53,8 @@ fun MeasureCard(
     entries: List<MeasureEntry>,
     onNew: () -> Unit,
     onEdit: (id: String) -> Unit,
+    /** Дополнительный блок под заголовком (например, «Из Health Connect» у сна). */
+    extra: (@Composable () -> Unit)? = null,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Row(
@@ -71,6 +73,7 @@ fun MeasureCard(
             }
             Text("+", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
         }
+        extra?.let { Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) { it() } }
         if (entries.isNotEmpty()) {
             HorizontalDivider()
             Column(Modifier.padding(vertical = 4.dp)) {

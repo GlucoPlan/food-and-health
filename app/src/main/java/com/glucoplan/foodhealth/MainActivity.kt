@@ -12,7 +12,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import com.glucoplan.foodhealth.data.health.SleepImporter
 import com.glucoplan.foodhealth.data.sync.SyncScheduler
+import kotlinx.coroutines.launch
 import com.glucoplan.foodhealth.ui.navigation.AppNavigation
 import com.glucoplan.foodhealth.ui.navigation.RootState
 import com.glucoplan.foodhealth.ui.navigation.RootViewModel
@@ -29,6 +32,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var updateRepository: UpdateRepository
     @Inject lateinit var syncScheduler: SyncScheduler
+    @Inject lateinit var sleepImporter: SleepImporter
 
     private val rootViewModel: RootViewModel by viewModels()
 
@@ -40,6 +44,8 @@ class MainActivity : ComponentActivity() {
             updateRepository.checkIfDue()
             // ТЗ 6: синхронизация при запуске
             syncScheduler.syncNow()
+            // ТЗ 15.5: сон из Health Connect — если разрешение уже дано, не чаще раза в час
+            lifecycleScope.launch { sleepImporter.runIfDue() }
         }
         setContent {
             FoodHealthTheme {

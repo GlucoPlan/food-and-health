@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.glucoplan.foodhealth.data.NumberText
+import com.glucoplan.foodhealth.data.health.SleepImporter
 import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
 import com.glucoplan.foodhealth.data.measure.BodyMeasureRepository
 import com.glucoplan.foodhealth.data.measure.BodyPart
@@ -80,7 +81,32 @@ class MeasuresViewModel @Inject constructor(
     private val sleeps: SleepRepository,
     private val water: WaterRepository,
     private val bodies: BodyMeasureRepository,
+    private val sleepImporter: SleepImporter,
 ) : ViewModel() {
+
+    /** Владелец телефона: сон из Health Connect — только ему (15.5). */
+    val ownerId: StateFlow<String?> = devicePrefs.ownerId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Health Connect есть на телефоне — показывать кнопку «Из Health Connect». */
+    val healthConnectAvailable: Boolean = runCatching { sleepImporter.available() }.getOrDefault(false)
+
+    private val _importMessage = MutableStateFlow<String?>(null)
+    val importMessage: StateFlow<String?> = _importMessage.asStateFlow()
+
+    /** Нужно спросить разрешение на чтение сна — экран запускает системный запрос. */
+    suspend fun needsSleepPermission(): Boolean = !sleepImporter.hasPermission()
+
+    /** Загрузить сон из Health Connect (после разрешения). */
+    fun importSleep() {
+        viewModelScope.launch {
+            val n = runCatching { sleepImporter.run() }.getOrNull()
+            _importMessage.value = when (n) {
+                null -> "Нет доступа к сну в Health Connect"
+                0 -> "Новых ночей в Health Connect нет"
+                else -> "Из Health Connect загружено ночей: $n"
+            }
+        }
+    }
 
     /** null — тот, кто выбран на экране приёма пищи (аргумент), иначе владелец. */
     private val chosen = MutableStateFlow(savedStateHandle.get<String>(ARG_PROFILE))

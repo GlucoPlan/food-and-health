@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.glucoplan.foodhealth.data.db.AppDatabase
+import com.glucoplan.foodhealth.data.health.HealthConnectSleep
+import com.glucoplan.foodhealth.data.health.SleepSource
 import com.glucoplan.foodhealth.data.pan.PanPhotos
 import com.glucoplan.foodhealth.data.sync.PhotoSync
 import com.glucoplan.foodhealth.data.sync.SyncApi
@@ -34,6 +36,9 @@ annotation class ApplicationScope
 abstract class SyncModule {
     @Binds
     abstract fun bindSyncBackend(api: SyncApi): SyncBackend
+
+    @Binds
+    abstract fun bindSleepSource(source: HealthConnectSleep): SleepSource
 }
 
 @Module
