@@ -149,4 +149,91 @@ class ProfileValidatorTest {
         assertThat(p.incomplete).isTrue()
         assertThat(p.copy(sex = Sex.MALE, birthDate = LocalDate.of(1980, 1, 1)).incomplete).isFalse()
     }
+
+    // ТЗ 17.3: нормы, цель по весу, диапазон сахара
+
+    @Test
+    fun `пустые нормы и цель — расчёт и поддержание`() {
+        val result = validate(ProfileForm("Иван")) as ProfileValidation.Valid
+        assertThat(result.targetWeightKg).isNull()
+        assertThat(result.weightPaceKg).isEqualTo(0.5)
+        assertThat(result.manualNorms).isEqualTo(com.glucoplan.foodhealth.data.norms.NormSet())
+    }
+
+    @Test
+    fun `цель, темп и ручные нормы принимаются`() {
+        val form = ProfileForm(
+            "Иван", targetWeightKg = "80", weightPaceKg = "0,75",
+            normKcal = "2100", normProtein = "140", normFat = "70", normCarbs = "200,5",
+        )
+        val result = validate(form) as ProfileValidation.Valid
+        assertThat(result.targetWeightKg).isEqualTo(80.0)
+        assertThat(result.weightPaceKg).isEqualTo(0.75)
+        assertThat(result.manualNorms).isEqualTo(com.glucoplan.foodhealth.data.norms.NormSet(2100.0, 140.0, 70.0, 200.5))
+    }
+
+    @Test
+    fun `нормы и цель вне границ — ошибки у своих полей`() {
+        val form = ProfileForm(
+            "Иван", targetWeightKg = "800", normKcal = "500", normProtein = "абв", normFat = "5", normCarbs = "900",
+        )
+        val result = validate(form) as ProfileValidation.Invalid
+        assertThat(result.targetError).isEqualTo("Число от 30 до 300")
+        assertThat(result.kcalError).isEqualTo("Число от 800 до 5000")
+        assertThat(result.proteinError).isNotNull()
+        assertThat(result.fatError).isNotNull()
+        assertThat(result.normCarbsError).isNotNull()
+        assertThat(result.nameError).isNull()
+    }
+
+    @Test
+    fun `темп проверяется только при целевом весе`() {
+        assertThat(validate(ProfileForm("Иван", weightPaceKg = "9"))).isInstanceOf(ProfileValidation.Valid::class.java)
+        val result = validate(ProfileForm("Иван", targetWeightKg = "80", weightPaceKg = "9")) as ProfileValidation.Invalid
+        assertThat(result.paceError).isEqualTo("Число от 0,1 до 1,5")
+        val empty = validate(ProfileForm("Иван", targetWeightKg = "80", weightPaceKg = "")) as ProfileValidation.Invalid
+        assertThat(empty.paceError).isNotNull()
+    }
+
+    @Test
+    fun `у ребёнка цель не проверяется и остаётся прежней`() {
+        val form = ProfileForm("Дочь", sex = Sex.FEMALE, birthDate = LocalDate.of(2014, 5, 20), targetWeightKg = "абв")
+        val result = ProfileValidator.validate(
+            form, emptyList(), today = today, currentTarget = 45.0, currentPace = 0.3,
+        ) as ProfileValidation.Valid
+        assertThat(result.targetWeightKg).isEqualTo(45.0)
+        assertThat(result.weightPaceKg).isEqualTo(0.3)
+    }
+
+    @Test
+    fun `диапазон сахара при СД1`() {
+        val ok = validate(ProfileForm("Дочь", sd1Enabled = true, glucoseLow = "4,5", glucoseHigh = "9")) as ProfileValidation.Valid
+        assertThat(ok.glucoseLow).isEqualTo(4.5)
+        assertThat(ok.glucoseHigh).isEqualTo(9.0)
+
+        val none = validate(ProfileForm("Дочь", sd1Enabled = true)) as ProfileValidation.Valid
+        assertThat(none.glucoseLow).isNull()
+        assertThat(none.glucoseHigh).isNull()
+    }
+
+    @Test
+    fun `диапазон сахара с ошибками`() {
+        fun error(low: String, high: String) =
+            (validate(ProfileForm("Дочь", sd1Enabled = true, glucoseLow = low, glucoseHigh = high)) as ProfileValidation.Invalid)
+                .glucoseError
+        assertThat(error("4", "")).isEqualTo("Укажите обе границы")
+        assertThat(error("1", "9")).isNotNull()
+        assertThat(error("4", "25")).isNotNull()
+        assertThat(error("8", "8")).isEqualTo("«От» должно быть меньше «до»")
+    }
+
+    @Test
+    fun `без СД1 диапазон не проверяется и остаётся прежним`() {
+        val result = ProfileValidator.validate(
+            ProfileForm("Иван", sex = Sex.MALE, birthDate = LocalDate.of(1985, 3, 15), glucoseLow = "x"),
+            emptyList(), today = today, currentGlucose = 3.9 to 10.0,
+        ) as ProfileValidation.Valid
+        assertThat(result.glucoseLow).isEqualTo(3.9)
+        assertThat(result.glucoseHigh).isEqualTo(10.0)
+    }
 }

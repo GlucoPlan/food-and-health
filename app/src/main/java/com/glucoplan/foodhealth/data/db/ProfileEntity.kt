@@ -23,4 +23,16 @@ data class ProfileEntity(
     @ColumnInfo(name = "birth_date") val birthDate: String? = null,
     @ColumnInfo(name = "water_enabled", defaultValue = "0") val waterEnabled: Boolean = false,
     @ColumnInfo(name = "water_ml_per_kg", defaultValue = "30") val waterMlPerKg: Double = 30.0,
+    // Этап 3 (ТЗ 17.3): нормы. Пустые нормы — расчёт
+    /** sedentary / light / moderate / high; пусто — moderate. */
+    val activity: String? = null,
+    @ColumnInfo(name = "target_weight_kg") val targetWeightKg: Double? = null,
+    @ColumnInfo(name = "weight_pace_kg", defaultValue = "0.5") val weightPaceKg: Double = 0.5,
+    @ColumnInfo(name = "norm_kcal") val normKcal: Double? = null,
+    @ColumnInfo(name = "norm_protein") val normProtein: Double? = null,
+    @ColumnInfo(name = "norm_fat") val normFat: Double? = null,
+    @ColumnInfo(name = "norm_carbs") val normCarbs: Double? = null,
+    /** Целевой диапазон сахара, ммоль/л; только у профиля с «Дневником СД1». */
+    @ColumnInfo(name = "glucose_low") val glucoseLow: Double? = null,
+    @ColumnInfo(name = "glucose_high") val glucoseHigh: Double? = null,
 )

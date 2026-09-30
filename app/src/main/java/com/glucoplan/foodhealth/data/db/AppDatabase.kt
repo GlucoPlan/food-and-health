@@ -59,7 +59,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bodyMeasureDao(): BodyMeasureDao
 
     companion object {
-        const val VERSION = 11
+        const val VERSION = 12
         const val NAME = "food_health.db"
     }
 }

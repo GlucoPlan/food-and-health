@@ -40,6 +40,22 @@ class RecordCodecTest {
     }
 
     @Test
+    fun `нормы профиля передаются без изменений (17_3)`() = runTest {
+        val a = phone("a")
+        val b = phone("b")
+        val profile = ProfileEntity(
+            "pr", "Иван", false, false, 10.0, 11L, false, "dev",
+            sex = "male", birthDate = "1985-03-08", waterEnabled = true, waterMlPerKg = 35.0,
+            activity = "light", targetWeightKg = 80.0, weightPaceKg = 0.3,
+            normKcal = 2100.0, normProtein = null, normFat = 70.0, normCarbs = null,
+            glucoseLow = 3.9, glucoseHigh = 10.0,
+        )
+        a.db.profileDao().upsert(profile)
+        copy(a, b, "profile", "pr")
+        assertThat(b.db.profileDao().getById("pr")).isEqualTo(profile)
+    }
+
+    @Test
     fun `все таблицы туда и обратно без изменений`() = runTest {
         val a = phone("a")
         val b = phone("b")

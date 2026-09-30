@@ -378,4 +378,38 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 11 — нормы и диапазон сахара в профиле, курсор сброшен`() = runTest {
+        createDatabase(11) { db ->
+            db.execSQL(
+                "INSERT INTO profile (id, name, sd1_enabled, show_xe, carbs_per_xe, updated_at, deleted, device_id, " +
+                    "sex, birth_date, water_enabled, water_ml_per_kg) " +
+                    "VALUES ('p1', 'Иван', 0, 0, 10.0, 100, 0, 'dev', 'male', '1985-03-08', 1, 35.0)"
+            )
+            db.execSQL("INSERT OR REPLACE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 120, 1)")
+        }
+
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val profile = db.profileDao().getById("p1")!!
+            assertThat(profile.waterMlPerKg).isEqualTo(35.0)
+            assertThat(profile.activity).isNull()
+            assertThat(profile.weightPaceKg).isEqualTo(0.5)
+            assertThat(profile.targetWeightKg).isNull()
+            assertThat(profile.normKcal).isNull()
+            assertThat(profile.glucoseLow).isNull()
+            assertThat(db.syncDao().state()!!.cursor).isEqualTo(0)
+
+            db.profileDao().upsert(profile.copy(activity = "light", normKcal = 2100.0, glucoseHigh = 10.0, updatedAt = 200))
+            assertThat(db.profileDao().getById("p1")!!.normKcal).isEqualTo(2100.0)
+            assertThat(db.syncDao().outbox().map { it.tbl to it.id }).contains("profile" to "p1")
+        } finally {
+            db.close()
+        }
+    }
 }

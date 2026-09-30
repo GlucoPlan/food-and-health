@@ -129,4 +129,54 @@ class ProfileRepositoryTest {
         // Без пола и даты сохранить нельзя
         assertThat(repo.save("old", ProfileForm("Рита"))).isInstanceOf(ProfileValidation.Invalid::class.java)
     }
+
+    @Test
+    fun `активность, цель, ручные нормы и диапазон сахара сохраняются (17_3)`() = runTest {
+        repo.save(
+            null,
+            filledProfileForm("Я", sd1Enabled = true, sex = Sex.MALE, birthDate = java.time.LocalDate.of(1985, 3, 8)).copy(
+                activity = com.glucoplan.foodhealth.data.norms.Activity.LIGHT,
+                targetWeightKg = "80", weightPaceKg = "0,3",
+                normKcal = "2100", normCarbs = "200",
+                glucoseLow = "4", glucoseHigh = "9,5",
+            ),
+        )
+        val p = repo.observeProfiles().first().single()
+        assertThat(p.activity).isEqualTo(com.glucoplan.foodhealth.data.norms.Activity.LIGHT)
+        assertThat(p.targetWeightKg).isEqualTo(80.0)
+        assertThat(p.weightPaceKg).isEqualTo(0.3)
+        assertThat(p.manualNorms).isEqualTo(com.glucoplan.foodhealth.data.norms.NormSet(2100.0, null, null, 200.0))
+        assertThat(p.glucoseLow).isEqualTo(4.0)
+        assertThat(p.glucoseHigh).isEqualTo(9.5)
+
+        // Очистка полей — снова расчёт и поддержание
+        repo.save(p.id, filledProfileForm("Я", sd1Enabled = true, sex = Sex.MALE, birthDate = java.time.LocalDate.of(1985, 3, 8)))
+        val cleared = repo.get(p.id)!!
+        assertThat(cleared.targetWeightKg).isNull()
+        assertThat(cleared.manualNorms).isEqualTo(com.glucoplan.foodhealth.data.norms.NormSet())
+        assertThat(cleared.glucoseLow).isNull()
+    }
+
+    @Test
+    fun `выключение СД1 не стирает диапазон сахара`() = runTest {
+        val form = filledProfileForm("Дочь", sd1Enabled = true).copy(glucoseLow = "4", glucoseHigh = "10")
+        repo.save(null, form)
+        val id = repo.observeProfiles().first().single().id
+        repo.save(id, form.copy(sd1Enabled = false, glucoseLow = "", glucoseHigh = ""))
+        val p = repo.get(id)!!
+        assertThat(p.glucoseLow).isEqualTo(4.0)
+        assertThat(p.glucoseHigh).isEqualTo(10.0)
+    }
+
+    @Test
+    fun `старый профиль без норм читается с умолчаниями`() = runTest {
+        db.profileDao().upsert(
+            com.glucoplan.foodhealth.data.db.ProfileEntity("old", "Рита", false, false, 10.0, 1L, false, "dev")
+        )
+        val p = repo.get("old")!!
+        assertThat(p.activity).isEqualTo(com.glucoplan.foodhealth.data.norms.Activity.MODERATE)
+        assertThat(p.weightPaceKg).isEqualTo(0.5)
+        assertThat(p.targetWeightKg).isNull()
+        assertThat(p.glucoseLow).isNull()
+    }
 }

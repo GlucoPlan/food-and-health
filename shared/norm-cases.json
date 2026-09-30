@@ -1,0 +1,87 @@
+{
+ "about": "Контрольные примеры расчёта норм (ТЗ 17.3): одни и те же для телефона и сервера. Проверяются только указанные поля expect; числа — с точностью 0,001. Ожидаемые значения посчитаны вручную, расчёт — в comment.",
+ "cases": [
+  {
+   "name": "мужчина 41 год, умеренно, худеет 0,5 кг в неделю",
+   "comment": "bmr = 950 + 1125 - 205 + 5 = 1875; x 1,55 = 2906,25; - 550 = 2356,25; белки 20 %, жиры 30 %, углеводы 50 %",
+   "input": {"sex": "male", "birth_date": "1985-03-15", "date": "2026-09-30", "height_cm": 180, "weight_kg": 95,
+             "activity": "moderate", "target_weight_kg": 80, "pace_kg_per_week": 0.5},
+   "expect": {"child": false, "missing": [], "auto_kcal": 2356.25, "kcal": 2356.25, "protein": 117.8125,
+              "fat": 78.5416667, "carbs": 294.53125, "fiber_min_g": 25, "salt_max_g": 5,
+              "micro": {"fe": 10, "vit_a": 900, "vit_d": 15, "ca": 1000}}
+  },
+  {
+   "name": "женщина 36 лет, сидячий, быстрое похудение упирается в базовый обмен",
+   "comment": "bmr = 700 + 1000 - 180 - 161 = 1359; x 1,2 = 1630,8; - 1100 = 530,8 < 1359",
+   "input": {"sex": "female", "birth_date": "1990-01-01", "date": "2026-09-30", "height_cm": 160, "weight_kg": 70,
+             "activity": "sedentary", "target_weight_kg": 55, "pace_kg_per_week": 1.0},
+   "expect": {"child": false, "missing": [], "auto_kcal": 1359, "kcal": 1359, "protein": 67.95, "fat": 45.3,
+              "carbs": 169.875, "micro": {"fe": 18, "vit_a": 800}}
+  },
+  {
+   "name": "мужчина 30 лет, немного, цель выше текущего веса — набор",
+   "comment": "bmr = 700 + 1093,75 - 150 + 5 = 1648,75; x 1,375 = 2267,03125; + 0,25 x 7700 / 7 = 275",
+   "input": {"sex": "male", "birth_date": "1996-09-30", "date": "2026-09-30", "height_cm": 175, "weight_kg": 70,
+             "activity": "light", "target_weight_kg": 75, "pace_kg_per_week": 0.25},
+   "expect": {"child": false, "missing": [], "auto_kcal": 2542.03125, "kcal": 2542.03125}
+  },
+  {
+   "name": "цель достигнута — поддержание",
+   "input": {"sex": "male", "birth_date": "1996-09-30", "date": "2026-09-30", "height_cm": 175, "weight_kg": 70,
+             "activity": "light", "target_weight_kg": 70, "pace_kg_per_week": 0.5},
+   "expect": {"auto_kcal": 2267.03125, "kcal": 2267.03125}
+  },
+  {
+   "name": "без цели, ручные калории и белки",
+   "comment": "подсказки БЖУ считаются от ручных калорий: белки 2000 x 0,2 / 4 = 100",
+   "input": {"sex": "male", "birth_date": "1996-09-30", "date": "2026-09-30", "height_cm": 175, "weight_kg": 70,
+             "activity": "light", "manual": {"kcal": 2000, "protein": 150}},
+   "expect": {"auto_kcal": 2267.03125, "kcal": 2000, "protein": 150, "auto_protein": 100, "fat": 66.6666667,
+              "carbs": 250}
+  },
+  {
+   "name": "девочка 12 лет — таблица МР 11–14 лет",
+   "input": {"sex": "female", "birth_date": "2014-05-20", "date": "2026-09-30", "height_cm": null, "weight_kg": null},
+   "expect": {"child": true, "missing": [], "auto_kcal": 2300, "kcal": 2300, "protein": 69, "fat": 77, "carbs": 334,
+              "fiber_min_g": 20, "salt_max_g": null, "micro": {"fe": 15, "vit_a": 800, "vit_c": 60, "ca": 1200}}
+  },
+  {
+   "name": "в день 11-летия — уже группа 11–14",
+   "input": {"sex": "male", "birth_date": "2015-09-30", "date": "2026-09-30", "height_cm": 150, "weight_kg": 40},
+   "expect": {"child": true, "auto_kcal": 2500, "protein": 75}
+  },
+  {
+   "name": "накануне 11-летия — ещё группа 7–10",
+   "input": {"sex": "male", "birth_date": "2015-09-30", "date": "2026-09-29", "height_cm": 150, "weight_kg": 40},
+   "expect": {"child": true, "auto_kcal": 2100, "protein": 63, "fiber_min_g": 16}
+  },
+  {
+   "name": "ребёнку ручные калории — БЖУ пропорционально таблице",
+   "comment": "10 лет, группа 7–10: 2100 / 63 / 70 / 305, множитель 2000 / 2100",
+   "input": {"sex": "male", "birth_date": "2016-01-01", "date": "2026-09-30", "manual": {"kcal": 2000}},
+   "expect": {"child": true, "auto_kcal": 2100, "kcal": 2000, "protein": 60, "fat": 66.6666667, "carbs": 290.4761905}
+  },
+  {
+   "name": "взрослый без роста — расчёта нет, ручные калории работают",
+   "input": {"sex": "male", "birth_date": "1985-03-15", "date": "2026-09-30", "height_cm": null, "weight_kg": 90,
+             "manual": {"kcal": 2000}},
+   "expect": {"child": false, "missing": ["height"], "auto_kcal": null, "kcal": 2000, "protein": 100,
+              "micro": {"fe": 10}}
+  },
+  {
+   "name": "нет пола и даты рождения",
+   "input": {"sex": null, "birth_date": null, "date": "2026-09-30", "height_cm": 180, "weight_kg": 90},
+   "expect": {"missing": ["sex", "birth_date"], "auto_kcal": null, "kcal": null, "protein": null, "micro": {}}
+  },
+  {
+   "name": "женщина старше 65 — витамин D и кальций выше",
+   "input": {"sex": "female", "birth_date": "1955-01-01", "date": "2026-09-30", "height_cm": 160, "weight_kg": 60},
+   "expect": {"micro": {"vit_d": 20, "ca": 1200, "fe": 18}}
+  },
+  {
+   "name": "ребёнок до года — нормы не считаются",
+   "input": {"sex": "female", "birth_date": "2026-03-01", "date": "2026-09-30"},
+   "expect": {"child": true, "missing": ["infant"], "auto_kcal": null, "micro": {}}
+  }
+ ]
+}

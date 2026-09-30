@@ -338,8 +338,26 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
+/**
+ * 11 → 12: этап 3 — активность, цель по весу, ручные нормы и диапазон сахара в профиле (ТЗ 17.3).
+ * Курсор сбрасывается: эти поля могли прийти с телефона, обновлённого раньше, и лежат в sync_extra.
+ * Без сброса они остались бы там, а колонки — пустыми, и первая же правка профиля на этом телефоне
+ * отправила бы пустые значения поверх настоящих. Повторная загрузка раскладывает их по колонкам.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `profile` ADD COLUMN `activity` TEXT")
+        db.execSQL("ALTER TABLE `profile` ADD COLUMN `target_weight_kg` REAL")
+        db.execSQL("ALTER TABLE `profile` ADD COLUMN `weight_pace_kg` REAL NOT NULL DEFAULT 0.5")
+        listOf("norm_kcal", "norm_protein", "norm_fat", "norm_carbs", "glucose_low", "glucose_high").forEach {
+            db.execSQL("ALTER TABLE `profile` ADD COLUMN `$it` REAL")
+        }
+        db.execSQL("UPDATE sync_state SET cursor = 0 WHERE id = 1")
+    }
+}
+
 /** Все миграции по порядку; каждая покрыта MigrationTest. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
 )

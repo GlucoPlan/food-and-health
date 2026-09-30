@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun ProfileEditScreen(onDone: () -> Unit, viewModel: ProfileEditViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val heightHistory by viewModel.heightHistory.collectAsStateWithLifecycle()
+    val norms by viewModel.norms.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.saved) { if (state.saved) onDone() }
 
@@ -110,6 +111,15 @@ fun ProfileEditScreen(onDone: () -> Unit, viewModel: ProfileEditViewModel = hilt
                 checked = form.sd1Enabled,
                 onChange = viewModel::onSd1Change,
             )
+            if (form.sd1Enabled) {
+                GlucoseRangeFields(
+                    low = form.glucoseLow,
+                    high = form.glucoseHigh,
+                    error = state.glucoseError,
+                    onLow = viewModel::onGlucoseLowChange,
+                    onHigh = viewModel::onGlucoseHighChange,
+                )
+            }
             SwitchRow(
                 title = "Показывать ХЕ",
                 subtitle = null,
@@ -146,6 +156,7 @@ fun ProfileEditScreen(onDone: () -> Unit, viewModel: ProfileEditViewModel = hilt
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            NormsSection(state, norms, viewModel)
             Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth()) {
                 Text("Сохранить")
             }
