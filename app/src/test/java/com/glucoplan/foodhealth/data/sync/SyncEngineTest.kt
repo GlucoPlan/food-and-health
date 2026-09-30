@@ -306,4 +306,19 @@ class SyncEngineTest {
         assertThat(got.minutes).isEqualTo(600L)
         assertThat(got.quality).isEqualTo(com.glucoplan.foodhealth.data.measure.SleepQuality.NORMAL)
     }
+
+    @Test
+    fun `вода доходит до другого телефона`() = runTest {
+        val a = phone("a")
+        val b = phone("b")
+        fun waterOf(p: Phone) = com.glucoplan.foodhealth.data.measure.WaterRepository(
+            p.db.waterDao(), com.glucoplan.foodhealth.data.measure.WeightRepository(p.db.weightDao(), p.prefs), p.profiles, p.prefs,
+        )
+        val aw = waterOf(a)
+        val bw = waterOf(b)
+        aw.save(null, "me", "330", null)
+        a.engine.sync(); b.engine.sync()
+        assertThat(bw.observeToday("me").first().single().ml).isEqualTo(330)
+        assertThat(bw.observeLastVolume("me").first()).isEqualTo(330)
+    }
 }

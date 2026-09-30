@@ -10,6 +10,7 @@ import com.glucoplan.foodhealth.data.db.DishDao
 import com.glucoplan.foodhealth.data.db.HeightDao
 import com.glucoplan.foodhealth.data.db.MealDao
 import com.glucoplan.foodhealth.data.db.SleepDao
+import com.glucoplan.foodhealth.data.db.WaterDao
 import com.glucoplan.foodhealth.data.db.WeightDao
 import com.glucoplan.foodhealth.data.db.SyncDao
 import com.glucoplan.foodhealth.data.db.SyncTriggers
@@ -68,4 +69,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSleepDao(db: AppDatabase): SleepDao = db.sleepDao()
+
+    @Provides
+    fun provideWaterDao(db: AppDatabase): WaterDao = db.waterDao()
 }

@@ -34,6 +34,7 @@ import com.glucoplan.foodhealth.data.measure.PressureRecord
 import com.glucoplan.foodhealth.data.measure.SleepRecord
 import com.glucoplan.foodhealth.data.measure.SleepTime
 import com.glucoplan.foodhealth.data.measure.WeightRecord
+import com.glucoplan.foodhealth.data.measure.WaterRepository
 import com.glucoplan.foodhealth.data.measure.WeightRepository
 import com.glucoplan.foodhealth.ui.format.mealTime
 import com.glucoplan.foodhealth.ui.format.shortDate
@@ -119,6 +120,16 @@ fun MeasuresScreen(
                 onNew = viewModel::newSleep,
                 onEdit = viewModel::editSleep,
             )
+            if (state.waterEnabled) {
+                WaterCard(
+                    today = state.waterToday,
+                    normMl = state.waterNormMl,
+                    lastVolume = state.waterLastVolume,
+                    onQuickAdd = viewModel::quickWater,
+                    onOther = { viewModel.newMeasure(MeasureKind.WATER) },
+                    onEdit = { viewModel.edit(MeasureKind.WATER, it) },
+                )
+            }
         }
     }
 
@@ -149,6 +160,18 @@ fun MeasuresScreen(
                     initialAt = d.initialAt,
                     editing = d.editingId != null,
                     hint = state.weights.firstOrNull()?.let { "Прошлый раз: ${weightLine(it)}" },
+                    errors = d.errors,
+                    onSave = viewModel::save,
+                    onDelete = viewModel::delete,
+                    onDismiss = viewModel::dismiss,
+                )
+                MeasureKind.WATER -> MeasureEntryDialog(
+                    title = if (d.editingId == null) "Вода" else "Исправить воду",
+                    fields = listOf(MeasureField(WaterRepository.FIELD_ML, "Вода, мл", integer = true)),
+                    initial = d.initial,
+                    initialAt = d.initialAt,
+                    editing = d.editingId != null,
+                    hint = null,
                     errors = d.errors,
                     onSave = viewModel::save,
                     onDelete = viewModel::delete,

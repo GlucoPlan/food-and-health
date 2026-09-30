@@ -11,6 +11,9 @@ import com.glucoplan.foodhealth.data.measure.SleepQuality
 import com.glucoplan.foodhealth.data.measure.SleepRecord
 import com.glucoplan.foodhealth.data.measure.SleepRepository
 import com.glucoplan.foodhealth.data.measure.SleepTime
+import com.glucoplan.foodhealth.data.measure.WaterNorm
+import com.glucoplan.foodhealth.data.measure.WaterRecord
+import com.glucoplan.foodhealth.data.measure.WaterRepository
 import com.glucoplan.foodhealth.data.measure.WeightRecord
 import com.glucoplan.foodhealth.data.measure.WeightRepository
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
@@ -42,9 +45,15 @@ data class MeasuresUi(
     val weights: List<WeightRecord> = emptyList(),
     val pressures: List<PressureRecord> = emptyList(),
     val sleeps: List<SleepRecord> = emptyList(),
+    /** У выбранного профиля включено «Считать воду» (15.3); иначе карточки воды нет. */
+    val waterEnabled: Boolean = false,
+    val waterToday: List<WaterRecord> = emptyList(),
+    val waterLastVolume: Int = WaterNorm.DEFAULT_ML,
+    /** Дневная норма, мл; null — вес ещё не записан. */
+    val waterNormMl: Int? = null,
 )
 
-enum class MeasureKind { WEIGHT, PRESSURE }
+enum class MeasureKind { WEIGHT, PRESSURE, WATER }
 
 /** Открытый диалог замера: новая запись ([editingId] = null) или правка. */
 data class MeasureDialogState(
@@ -65,6 +74,7 @@ class MeasuresViewModel @Inject constructor(
     private val weights: WeightRepository,
     private val pressures: BloodPressureRepository,
     private val sleeps: SleepRepository,
+    private val water: WaterRepository,
 ) : ViewModel() {
 
     /** null — тот, кто выбран на экране приёма пищи (аргумент), иначе владелец. */
@@ -76,11 +86,27 @@ class MeasuresViewModel @Inject constructor(
 
     val state: StateFlow<MeasuresUi> = profileState.flatMapLatest { (list, profileId) ->
         if (profileId == null) return@flatMapLatest flowOf(MeasuresUi(true, list, null))
+        val profile = list.firstOrNull { it.id == profileId }
         combine(
             weights.observeRecent(profileId),
             pressures.observeRecent(profileId),
             sleeps.observeRecent(profileId),
-        ) { w, p, sl -> MeasuresUi(true, list, profileId, w, p, sl) }
+            water.observeToday(profileId),
+            water.observeLastVolume(profileId),
+        ) { w, p, sl, wt, last ->
+            MeasuresUi(
+                loaded = true,
+                profiles = list,
+                profileId = profileId,
+                weights = w,
+                pressures = p,
+                sleeps = sl,
+                waterEnabled = profile?.waterEnabled == true,
+                waterToday = wt,
+                waterLastVolume = last,
+                waterNormMl = profile?.let { WaterNorm.dailyNormMl(it.waterMlPerKg, w.firstOrNull()?.kg) },
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasuresUi())
 
     private val _dialog = MutableStateFlow<MeasureDialogState?>(null)
@@ -101,6 +127,7 @@ class MeasuresViewModel @Inject constructor(
             initial = when (kind) {
                 MeasureKind.WEIGHT -> listOf("")
                 MeasureKind.PRESSURE -> listOf("", "", "")
+                MeasureKind.WATER -> listOf(state.value.waterLastVolume.toString())
             },
         )
     }
@@ -110,6 +137,9 @@ class MeasuresViewModel @Inject constructor(
         _dialog.value = when (kind) {
             MeasureKind.WEIGHT -> s.weights.firstOrNull { it.id == id }?.let {
                 MeasureDialogState(kind, id, listOf(NumberText.format(it.kg, 1)), it.measuredAt)
+            }
+            MeasureKind.WATER -> s.waterToday.firstOrNull { it.id == id }?.let {
+                MeasureDialogState(kind, id, listOf(it.ml.toString()), it.drunkAt)
             }
             MeasureKind.PRESSURE -> s.pressures.firstOrNull { it.id == id }?.let {
                 MeasureDialogState(
@@ -132,6 +162,7 @@ class MeasuresViewModel @Inject constructor(
             val result = when (dialog.kind) {
                 MeasureKind.WEIGHT -> weights.save(dialog.editingId, profileId, values[0], at)
                 MeasureKind.PRESSURE -> pressures.save(dialog.editingId, profileId, values[0], values[1], values[2], at)
+                MeasureKind.WATER -> water.save(dialog.editingId, profileId, values[0], at)
             }
             when (result) {
                 is MeasureSave.Saved -> {
@@ -151,8 +182,19 @@ class MeasuresViewModel @Inject constructor(
             when (dialog.kind) {
                 MeasureKind.WEIGHT -> weights.delete(id)
                 MeasureKind.PRESSURE -> pressures.delete(id)
+                MeasureKind.WATER -> water.delete(id)
             }
             _dialog.value = null
+        }
+    }
+
+    /** «+ 250 мл»: вода последним объёмом одним нажатием — и обратно к еде (15.4). */
+    fun quickWater() {
+        val s = state.value
+        val profileId = s.profileId ?: return
+        viewModelScope.launch {
+            val r = water.save(null, profileId, s.waterLastVolume.toString(), null)
+            if (r is MeasureSave.Saved) _recorded.value = r.message
         }
     }
 

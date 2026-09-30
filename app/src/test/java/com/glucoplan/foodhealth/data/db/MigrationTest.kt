@@ -323,4 +323,31 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 9 — вода, курсор сброшен, сон на месте`() = runTest {
+        createDatabase(9) { db ->
+            db.execSQL(
+                "INSERT INTO sleep (id, profile_id, asleep_at, woke_at, quality, source, external_id, updated_at, deleted, device_id) " +
+                    "VALUES ('s', 'p1', 1, 2, 'good', 'manual', NULL, 1, 0, 'dev')"
+            )
+            db.execSQL("INSERT OR REPLACE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 80, 1)")
+        }
+
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertThat(db.sleepDao().getById("s")!!.quality).isEqualTo("good")
+            assertThat(db.syncDao().state()!!.cursor).isEqualTo(0)
+
+            db.waterDao().upsert(WaterEntity("w", "p1", 3L, 250, 3L, false, "dev"))
+            assertThat(db.waterDao().latest("p1")!!.ml).isEqualTo(250)
+            assertThat(db.syncDao().outbox().map { it.tbl to it.id }).contains("water" to "w")
+        } finally {
+            db.close()
+        }
+    }
 }

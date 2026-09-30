@@ -11,6 +11,6 @@ object SyncTables {
     val ALL = listOf(
         "profile", "product", "pan", "dish", "dish_version", "dish_ingredient", "meal", "meal_item",
         // Этап 2
-        "height", "weight", "blood_pressure", "sleep",
+        "height", "weight", "blood_pressure", "sleep", "water",
     )
 }
