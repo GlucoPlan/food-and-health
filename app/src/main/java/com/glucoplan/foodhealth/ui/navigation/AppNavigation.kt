@@ -57,6 +57,7 @@ import com.glucoplan.foodhealth.ui.products.ProductEditScreen
 import com.glucoplan.foodhealth.ui.products.ProductEditViewModel
 import com.glucoplan.foodhealth.ui.products.ProductsScreen
 import com.glucoplan.foodhealth.ui.scanner.ScannerScreen
+import com.glucoplan.foodhealth.ui.report.ReportsScreen
 import com.glucoplan.foodhealth.ui.settings.ProfileEditScreen
 import com.glucoplan.foodhealth.ui.settings.ProfileEditViewModel
 import com.glucoplan.foodhealth.ui.settings.SettingsScreen
@@ -94,6 +95,7 @@ private const val PAN_EDIT_BASE = "pans/edit"
 
 private const val SETTINGS_MAIN = "settings/main"
 private const val PROFILE_EDIT_BASE = "settings/profile"
+private const val REPORTS = "settings/reports"
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     Meal("meal", "Приём пищи", Icons.Filled.Restaurant),
@@ -345,7 +347,11 @@ fun AppNavigation(settingsBadge: Boolean) {
                             navController.navigate(if (id == null) PROFILE_EDIT_BASE else "$PROFILE_EDIT_BASE?id=$id")
                         },
                         onOpenPans = { navController.navigate(PANS) },
+                        onOpenReports = { navController.navigate(REPORTS) },
                     )
+                }
+                composable(REPORTS) {
+                    ReportsScreen(onBack = { navController.popBackStack() })
                 }
                 composable(
                     route = "$PROFILE_EDIT_BASE?${ProfileEditViewModel.ARG_ID}={${ProfileEditViewModel.ARG_ID}}",

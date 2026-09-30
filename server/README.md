@@ -123,3 +123,9 @@ sudo bash server/deploy/restore.sh foodhealth-export-ДАТА.tar.gz
 
 ### `GET /photos/{id}`
 Файл `image/jpeg` или `404` (например, другой телефон ещё не успел загрузить фото).
+
+### `GET /reports/day?profile_id=…&date=ГГГГ-ММ-ДД`
+Итоги дня одного человека (ТЗ 17.5) по тому, что дошло до сервера; сутки — по Москве. Отчёт не хранится,
+строится заново при каждом запросе. Ответ — JSON: `title`, `incomplete`, `empty`, `summary` (выжимка) и
+`sections` (подробности); строка — `{"spans": [{"text", "bold"}], "style"}`, `style`: `normal`, `big`, `warn`,
+`muted`. Неизвестный или удалённый профиль — `404`, неверная дата — `422`.

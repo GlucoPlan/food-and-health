@@ -1,18 +1,22 @@
-"""API сервера «Еда и здоровье» (ТЗ 9): /health, /sync, /photos.
+"""API сервера «Еда и здоровье» (ТЗ 9, 17): /health, /sync, /photos, /reports.
 
 Каждый запрос — с заголовком X-Family-Key, без него 401.
 """
 
 import hmac
 import re
+from datetime import date
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from . import config
+from .daydata import TABLES as REPORT_TABLES
+from .daydata import Family
 from .db import TABLES, Store
+from .reports import daily
 
 PAGE_SIZE = 1000
 MAX_CHANGES = 5000
@@ -86,5 +90,14 @@ def create_app(settings: config.Settings | None = None) -> FastAPI:
         if not PHOTO_ID.match(photo_id) or not path.is_file():
             raise HTTPException(status_code=404, detail="Фото не найдено")
         return FileResponse(path, media_type="image/jpeg")
+
+    @app.get("/reports/day")
+    def report_day(profile_id: str, date_: Annotated[date, Query(alias="date")]) -> dict:
+        """Ежедневный отчёт (ТЗ 17.5) по тому, что дошло до сервера; не хранится, строится заново."""
+        family = Family(store.records(REPORT_TABLES))
+        profile = family.profiles.get(profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="Профиль не найден")
+        return daily.build(family, profile, date_)
 
     return app

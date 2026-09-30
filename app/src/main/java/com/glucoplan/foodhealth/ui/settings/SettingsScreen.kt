@@ -59,6 +59,7 @@ import java.util.Locale
 fun SettingsScreen(
     onOpenProfile: (id: String?) -> Unit,
     onOpenPans: () -> Unit,
+    onOpenReports: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val update by viewModel.update.collectAsStateWithLifecycle()
@@ -76,6 +77,15 @@ fun SettingsScreen(
     ) {
         Text("Настройки", style = MaterialTheme.typography.headlineSmall)
         OwnerCard(profiles, ownerId, onSelect = viewModel::setOwner)
+        // ТЗ 17.10: отчёты открываются отсюда, нижняя навигация не меняется
+        Card(Modifier.fillMaxWidth()) {
+            ListItem(
+                headlineContent = { Text("Отчёты и анализ") },
+                supportingContent = { Text("Итоги дня: еда, нормы, вес, сон, давление") },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier.clickable(onClick = onOpenReports),
+            )
+        }
         ProfilesCard(profiles, onOpenProfile)
         ServerCard(viewModel)
         SyncCard(viewModel)

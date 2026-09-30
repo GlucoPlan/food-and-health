@@ -9,7 +9,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Iterable, Iterator
 
 # Таблицы, которые синхронизируются (ТЗ 5.2). Новая таблица на телефоне = одна строка здесь.
 TABLES = frozenset({
@@ -123,6 +123,22 @@ class Store:
             for r in rows
         ]
         return changes, new_cursor, has_more
+
+    def records(self, tables: Iterable[str]) -> list[dict]:
+        """Все записи таблиц, включая удалённые: {"table", "id", "data", "deleted"} (для отчётов)."""
+        tables = list(tables)
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                f"SELECT tbl, id, data, deleted FROM record WHERE tbl IN ({','.join('?' * len(tables))})",
+                tables,
+            ).fetchall()
+        finally:
+            conn.close()
+        return [
+            {"table": r["tbl"], "id": r["id"], "data": json.loads(r["data"]), "deleted": bool(r["deleted"])}
+            for r in rows
+        ]
 
     def count(self) -> int:
         conn = self._connect()

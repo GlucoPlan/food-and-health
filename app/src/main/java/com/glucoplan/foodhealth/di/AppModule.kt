@@ -12,6 +12,8 @@ import com.glucoplan.foodhealth.data.pan.PanPhotos
 import com.glucoplan.foodhealth.data.sync.PhotoSync
 import com.glucoplan.foodhealth.data.sync.SyncApi
 import com.glucoplan.foodhealth.data.sync.SyncSettings
+import com.glucoplan.foodhealth.data.report.ReportApi
+import com.glucoplan.foodhealth.data.report.ReportBackend
 import com.glucoplan.foodhealth.data.sync.SyncBackend
 import dagger.Binds
 import dagger.Module
@@ -39,6 +41,9 @@ abstract class SyncModule {
 
     @Binds
     abstract fun bindSleepSource(source: HealthConnectSleep): SleepSource
+
+    @Binds
+    abstract fun bindReportBackend(api: ReportApi): ReportBackend
 }
 
 @Module
