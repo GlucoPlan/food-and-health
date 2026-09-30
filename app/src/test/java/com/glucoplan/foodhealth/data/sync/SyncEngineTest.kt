@@ -321,4 +321,15 @@ class SyncEngineTest {
         assertThat(bw.observeToday("me").first().single().ml).isEqualTo(330)
         assertThat(bw.observeLastVolume("me").first()).isEqualTo(330)
     }
+
+    @Test
+    fun `обхваты доходят до другого телефона, в том числе частично заполненные`() = runTest {
+        val a = phone("a")
+        val b = phone("b")
+        val ab = com.glucoplan.foodhealth.data.measure.BodyMeasureRepository(a.db.bodyMeasureDao(), a.prefs)
+        val bb = com.glucoplan.foodhealth.data.measure.BodyMeasureRepository(b.db.bodyMeasureDao(), b.prefs)
+        ab.save(null, "me", listOf("", "", "92", "98", "", "", "", "", ""), null)
+        a.engine.sync(); b.engine.sync()
+        assertThat(bb.observeRecent("me").first().single().text).isEqualTo("талия 92, живот 98")
+    }
 }

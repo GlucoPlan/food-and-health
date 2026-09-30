@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.foundation.layout.size
 import com.glucoplan.foodhealth.data.meal.HistoryMeal
 import com.glucoplan.foodhealth.data.meal.Sd1
@@ -137,6 +138,9 @@ fun HistoryScreen(
                             ) { onOpenMeasure(MeasuresViewModel.KIND_PRESSURE, entry.record.id, state.profileId) }
                             is FeedEntry.Sleep -> MeasureRow(Icons.Filled.Bedtime, entry.time, sleepText(entry.record)) {
                                 onOpenMeasure(MeasuresViewModel.KIND_SLEEP, entry.record.id, state.profileId)
+                            }
+                            is FeedEntry.Body -> MeasureRow(Icons.Filled.Straighten, entry.time, "Обхваты: ${entry.record.text}") {
+                                onOpenMeasure(MeasuresViewModel.KIND_BODY, entry.record.id, state.profileId)
                             }
                         }
                     }

@@ -306,8 +306,40 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
+/** 10 → 11: обхваты тела. Курсор сбрасывается по той же причине, что в 5 → 6. */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `body_measure` (
+                `id` TEXT NOT NULL,
+                `profile_id` TEXT NOT NULL,
+                `measured_at` INTEGER NOT NULL,
+                `neck` REAL,
+                `chest` REAL,
+                `waist` REAL,
+                `belly` REAL,
+                `hips` REAL,
+                `thigh` REAL,
+                `calf` REAL,
+                `arm` REAL,
+                `wrist` REAL,
+                `updated_at` INTEGER NOT NULL,
+                `deleted` INTEGER NOT NULL,
+                `device_id` TEXT NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_body_measure_profile_id_measured_at` ON `body_measure` (`profile_id`, `measured_at`)"
+        )
+        db.execSQL("UPDATE sync_state SET cursor = 0 WHERE id = 1")
+    }
+}
+
 /** Все миграции по порядку; каждая покрыта MigrationTest. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-    MIGRATION_8_9, MIGRATION_9_10,
+    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
 )

@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.glucoplan.foodhealth.data.db.AppDatabase
 import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
+import com.glucoplan.foodhealth.data.measure.BodyMeasureRepository
 import com.glucoplan.foodhealth.data.measure.SleepRepository
 import com.glucoplan.foodhealth.data.measure.WaterRepository
 import com.glucoplan.foodhealth.data.measure.WeightRepository
@@ -77,6 +78,7 @@ class MeasuresFromHistoryTest {
         BloodPressureRepository(db.bloodPressureDao(), prefs),
         sleeps,
         WaterRepository(db.waterDao(), weights, profiles, prefs),
+        BodyMeasureRepository(db.bodyMeasureDao(), prefs),
     )
 
     private suspend fun <T> Flow<T>.await(predicate: (T) -> Boolean): T =
@@ -129,5 +131,16 @@ class MeasuresFromHistoryTest {
     fun `несуществующая запись — сразу назад`() = runTest {
         val vm = vm(MeasuresViewModel.editArg(MeasuresViewModel.KIND_WEIGHT, "нет"))
         vm.closed.await { it }
+    }
+
+    @Test
+    fun `обхваты открываются по id — все девять полей, пустые пустыми`() = runTest {
+        val body = BodyMeasureRepository(db.bodyMeasureDao(), prefs)
+        body.save(null, "me", listOf("", "", "92", "98,5", "", "", "", "", ""), null)
+        val r = body.observeRecent("me").first().single()
+        val vm = vm(MeasuresViewModel.editArg(MeasuresViewModel.KIND_BODY, r.id))
+        val d = vm.dialog.await { it != null }!!
+        assertThat(d.kind).isEqualTo(MeasureKind.BODY)
+        assertThat(d.initial).containsExactly("", "", "92", "98,5", "", "", "", "", "").inOrder()
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
@@ -109,6 +110,8 @@ fun MeasureEntryDialog(
     onSave: (values: List<String>, at: Long?) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
+    /** Сколько полей в ряд; по умолчанию все в одном ряду. */
+    perRow: Int = fields.size,
 ) {
     val values = remember { mutableStateListOf(*initial.toTypedArray()) }
     // null — «сейчас»
@@ -122,8 +125,10 @@ fun MeasureEntryDialog(
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                fields.indices.chunked(perRow).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    fields.forEachIndexed { i, field ->
+                    row.forEach { i ->
+                        val field = fields[i]
                         val last = i == fields.lastIndex
                         OutlinedTextField(
                             value = values[i],
@@ -143,10 +148,16 @@ fun MeasureEntryDialog(
                             modifier = Modifier.weight(1f).focusRequester(focus[i]),
                         )
                     }
+                    // Неполный последний ряд — пустые места, чтобы поля были одной ширины
+                    repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+                }
                 }
                 // Внутри диалога: поля уже в композиции, клавиатура откроется сразу
                 LaunchedEffect(Unit) { focus[0].requestFocus() }
-                fields.mapNotNull { errors[it.key] }.distinct().forEach {
+                // Ошибки полей и общие (например, «заполните хотя бы одно»), кроме времени — оно ниже
+                (fields.mapNotNull { errors[it.key] } +
+                    errors.filterKeys { k -> k != MeasureSave.TIME && fields.none { it.key == k } }.values)
+                    .distinct().forEach {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
                 if (hint != null && !editing) {

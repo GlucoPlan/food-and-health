@@ -26,6 +26,7 @@ import androidx.room.TypeConverters
         BloodPressureEntity::class,
         SleepEntity::class,
         WaterEntity::class,
+        BodyMeasureEntity::class,
     ],
     version = AppDatabase.VERSION,
     exportSchema = true,
@@ -55,8 +56,10 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun waterDao(): WaterDao
 
+    abstract fun bodyMeasureDao(): BodyMeasureDao
+
     companion object {
-        const val VERSION = 10
+        const val VERSION = 11
         const val NAME = "food_health.db"
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -30,6 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.glucoplan.foodhealth.data.NumberText
 import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
+import com.glucoplan.foodhealth.data.measure.BodyPart
 import com.glucoplan.foodhealth.data.measure.PressureRecord
 import com.glucoplan.foodhealth.data.measure.SleepRecord
 import com.glucoplan.foodhealth.data.measure.SleepTime
@@ -123,6 +125,13 @@ fun MeasuresScreen(
                 onNew = viewModel::newSleep,
                 onEdit = viewModel::editSleep,
             )
+            MeasureCard(
+                title = "Обхваты",
+                icon = Icons.Filled.Straighten,
+                entries = state.bodies.map { MeasureEntry(it.id, "${it.text} · ${shortDate(it.measuredAt)}") },
+                onNew = { viewModel.newMeasure(MeasureKind.BODY) },
+                onEdit = { viewModel.edit(MeasureKind.BODY, it) },
+            )
             if (state.waterEnabled) {
                 WaterCard(
                     today = state.waterToday,
@@ -168,6 +177,25 @@ fun MeasuresScreen(
                     onDelete = viewModel::delete,
                     onDismiss = viewModel::dismiss,
                 )
+                MeasureKind.BODY -> {
+                    // В пустом поле серым — прошлое значение этого обхвата (удобно сравнивать раз в неделю)
+                    val last = state.bodies.firstOrNull()?.takeIf { d.editingId == null }
+                    MeasureEntryDialog(
+                        title = if (d.editingId == null) "Обхваты, см" else "Исправить обхваты",
+                        fields = BodyPart.entries.map { p ->
+                            MeasureField(p.code, p.label, placeholder = last?.values?.get(p)?.let { NumberText.format(it, 1) })
+                        },
+                        initial = d.initial,
+                        initialAt = d.initialAt,
+                        editing = d.editingId != null,
+                        hint = last?.let { "Серым — прошлый замер, ${shortDate(it.measuredAt)}" } ?: "Любое поле можно пропустить",
+                        errors = d.errors,
+                        onSave = viewModel::save,
+                        onDelete = viewModel::delete,
+                        onDismiss = viewModel::dismiss,
+                        perRow = 3,
+                    )
+                }
                 MeasureKind.WATER -> MeasureEntryDialog(
                     title = if (d.editingId == null) "Вода" else "Исправить воду",
                     fields = listOf(MeasureField(WaterRepository.FIELD_ML, "Вода, мл", integer = true)),

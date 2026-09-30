@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.glucoplan.foodhealth.data.NumberText
 import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
+import com.glucoplan.foodhealth.data.measure.BodyMeasureRepository
+import com.glucoplan.foodhealth.data.measure.BodyPart
+import com.glucoplan.foodhealth.data.measure.BodyRecord
 import com.glucoplan.foodhealth.data.measure.MeasureSave
 import com.glucoplan.foodhealth.data.measure.PressureRecord
 import com.glucoplan.foodhealth.data.measure.SleepQuality
@@ -45,6 +48,7 @@ data class MeasuresUi(
     val weights: List<WeightRecord> = emptyList(),
     val pressures: List<PressureRecord> = emptyList(),
     val sleeps: List<SleepRecord> = emptyList(),
+    val bodies: List<BodyRecord> = emptyList(),
     /** У выбранного профиля включено «Считать воду» (15.3); иначе карточки воды нет. */
     val waterEnabled: Boolean = false,
     val waterToday: List<WaterRecord> = emptyList(),
@@ -53,7 +57,7 @@ data class MeasuresUi(
     val waterNormMl: Int? = null,
 )
 
-enum class MeasureKind { WEIGHT, PRESSURE, WATER }
+enum class MeasureKind { WEIGHT, PRESSURE, WATER, BODY }
 
 /** Открытый диалог замера: новая запись ([editingId] = null) или правка. */
 data class MeasureDialogState(
@@ -75,6 +79,7 @@ class MeasuresViewModel @Inject constructor(
     private val pressures: BloodPressureRepository,
     private val sleeps: SleepRepository,
     private val water: WaterRepository,
+    private val bodies: BodyMeasureRepository,
 ) : ViewModel() {
 
     /** null — тот, кто выбран на экране приёма пищи (аргумент), иначе владелец. */
@@ -100,8 +105,8 @@ class MeasuresViewModel @Inject constructor(
             pressures.observeRecent(profileId),
             sleeps.observeRecent(profileId),
             water.observeToday(profileId),
-            water.observeLastVolume(profileId),
-        ) { w, p, sl, wt, last ->
+            combine(water.observeLastVolume(profileId), bodies.observeRecent(profileId)) { l, b -> l to b },
+        ) { w, p, sl, wt, (last, b) ->
             MeasuresUi(
                 loaded = true,
                 profiles = list,
@@ -109,6 +114,7 @@ class MeasuresViewModel @Inject constructor(
                 weights = w,
                 pressures = p,
                 sleeps = sl,
+                bodies = b,
                 waterEnabled = profile?.waterEnabled == true,
                 waterToday = wt,
                 waterLastVolume = last,
@@ -136,6 +142,7 @@ class MeasuresViewModel @Inject constructor(
                 MeasureKind.WEIGHT -> listOf("")
                 MeasureKind.PRESSURE -> listOf("", "", "")
                 MeasureKind.WATER -> listOf(state.value.waterLastVolume.toString())
+                MeasureKind.BODY -> BodyPart.entries.map { "" }
             },
         )
     }
@@ -146,6 +153,9 @@ class MeasuresViewModel @Inject constructor(
             _dialog.value = when (kind) {
                 MeasureKind.WEIGHT -> weights.get(id)?.let {
                     MeasureDialogState(kind, id, listOf(NumberText.format(it.kg, 1)), it.measuredAt)
+                }
+                MeasureKind.BODY -> bodies.get(id)?.let { r ->
+                    MeasureDialogState(kind, id, BodyPart.entries.map { p -> r.values[p]?.let { NumberText.format(it, 1) }.orEmpty() }, r.measuredAt)
                 }
                 MeasureKind.WATER -> water.get(id)?.let {
                     MeasureDialogState(kind, id, listOf(it.ml.toString()), it.drunkAt)
@@ -181,6 +191,7 @@ class MeasuresViewModel @Inject constructor(
                 MeasureKind.WEIGHT -> weights.save(dialog.editingId, profileId, values[0], at)
                 MeasureKind.PRESSURE -> pressures.save(dialog.editingId, profileId, values[0], values[1], values[2], at)
                 MeasureKind.WATER -> water.save(dialog.editingId, profileId, values[0], at)
+                MeasureKind.BODY -> bodies.save(dialog.editingId, profileId, values, at)
             }
             when (result) {
                 is MeasureSave.Saved -> {
@@ -201,6 +212,7 @@ class MeasuresViewModel @Inject constructor(
                 MeasureKind.WEIGHT -> weights.delete(id)
                 MeasureKind.PRESSURE -> pressures.delete(id)
                 MeasureKind.WATER -> water.delete(id)
+                MeasureKind.BODY -> bodies.delete(id)
             }
             _dialog.value = null
             closeIfFromHistory()
@@ -289,6 +301,7 @@ class MeasuresViewModel @Inject constructor(
                 KIND_PRESSURE -> edit(MeasureKind.PRESSURE, id)
                 KIND_WATER -> edit(MeasureKind.WATER, id)
                 KIND_SLEEP -> editSleep(id)
+                KIND_BODY -> edit(MeasureKind.BODY, id)
             }
         }
     }
@@ -300,6 +313,7 @@ class MeasuresViewModel @Inject constructor(
         const val KIND_PRESSURE = "pressure"
         const val KIND_WATER = "water"
         const val KIND_SLEEP = "sleep"
+        const val KIND_BODY = "body"
 
         /** Аргумент [ARG_EDIT]: какую запись открыть. */
         fun editArg(kind: String, id: String) = "$kind:$id"

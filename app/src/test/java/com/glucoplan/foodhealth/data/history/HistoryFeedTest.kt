@@ -99,4 +99,16 @@ class HistoryFeedTest {
         assertThat(days.single().water!!.totalMl).isEqualTo(250)
         assertThat(HistoryFeed.build(data, day = at(20, 12))).isEmpty()
     }
+
+    @Test
+    fun `обхваты — строкой в ленте дня по времени`() {
+        val body = com.glucoplan.foodhealth.data.measure.BodyRecord(
+            "b", "me", at(30, 9),
+            mapOf(com.glucoplan.foodhealth.data.measure.BodyPart.WAIST to 92.0),
+        )
+        val days = HistoryFeed.build(
+            FeedData(meals = listOf(meal("m", at(30, 12))), bodies = listOf(body), weights = listOf(weight("w", at(30, 8), 84.0)))
+        )
+        assertThat(days.single().entries.map { it.key }).containsExactly("meal:m", "body:b", "weight:w").inOrder()
+    }
 }

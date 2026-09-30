@@ -350,4 +350,32 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 10 — обхваты, курсор сброшен, вода на месте`() = runTest {
+        createDatabase(10) { db ->
+            db.execSQL(
+                "INSERT INTO water (id, profile_id, drunk_at, ml, updated_at, deleted, device_id) VALUES ('w', 'p1', 1, 250, 1, 0, 'dev')"
+            )
+            db.execSQL("INSERT OR REPLACE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 90, 1)")
+        }
+
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertThat(db.waterDao().latest("p1")!!.ml).isEqualTo(250)
+            assertThat(db.syncDao().state()!!.cursor).isEqualTo(0)
+
+            db.bodyMeasureDao().upsert(
+                BodyMeasureEntity("b", "p1", 2L, null, null, 92.0, null, null, null, null, null, null, 2L, false, "dev")
+            )
+            assertThat(db.bodyMeasureDao().getById("b")!!.waist).isEqualTo(92.0)
+            assertThat(db.syncDao().outbox().map { it.tbl to it.id }).contains("body_measure" to "b")
+        } finally {
+            db.close()
+        }
+    }
 }

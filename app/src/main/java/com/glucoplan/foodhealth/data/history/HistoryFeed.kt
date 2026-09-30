@@ -1,5 +1,6 @@
 package com.glucoplan.foodhealth.data.history
 
+import com.glucoplan.foodhealth.data.measure.BodyRecord
 import com.glucoplan.foodhealth.data.measure.PressureRecord
 import com.glucoplan.foodhealth.data.measure.SleepRecord
 import com.glucoplan.foodhealth.data.measure.WaterNorm
@@ -29,6 +30,11 @@ sealed interface FeedEntry {
         override val key get() = "pressure:${record.id}"
     }
 
+    data class Body(val record: BodyRecord) : FeedEntry {
+        override val time get() = record.measuredAt
+        override val key get() = "body:${record.id}"
+    }
+
     /** Сон стоит по времени пробуждения, в дне пробуждения. */
     data class Sleep(val record: SleepRecord) : FeedEntry {
         override val time get() = record.wokeAt
@@ -54,6 +60,7 @@ data class FeedData(
     val pressures: List<PressureRecord> = emptyList(),
     val sleeps: List<SleepRecord> = emptyList(),
     val waters: List<WaterRecord> = emptyList(),
+    val bodies: List<BodyRecord> = emptyList(),
     /** Норма воды профиля, мл на 1 кг; null — вода у профиля не считается. */
     val waterMlPerKg: Double? = null,
 )
@@ -66,7 +73,8 @@ object HistoryFeed {
         val entries = data.meals.map { FeedEntry.Meal(it) } +
             data.weights.map { FeedEntry.Weight(it) } +
             data.pressures.map { FeedEntry.Pressure(it) } +
-            data.sleeps.map { FeedEntry.Sleep(it) }
+            data.sleeps.map { FeedEntry.Sleep(it) } +
+            data.bodies.map { FeedEntry.Body(it) }
         val byDay = entries.groupBy { HistoryDays.dayStart(it.time) }
         val waterByDay = data.waters.groupBy { HistoryDays.dayStart(it.drunkAt) }
         val filterStart = day?.let(HistoryDays::dayStart)

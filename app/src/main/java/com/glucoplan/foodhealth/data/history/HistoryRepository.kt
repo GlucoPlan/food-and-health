@@ -2,6 +2,7 @@ package com.glucoplan.foodhealth.data.history
 
 import com.glucoplan.foodhealth.data.meal.MealRepository
 import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
+import com.glucoplan.foodhealth.data.measure.BodyMeasureRepository
 import com.glucoplan.foodhealth.data.measure.SleepRepository
 import com.glucoplan.foodhealth.data.measure.WaterRepository
 import com.glucoplan.foodhealth.data.measure.WeightRepository
@@ -19,6 +20,7 @@ class HistoryRepository @Inject constructor(
     private val pressures: BloodPressureRepository,
     private val sleeps: SleepRepository,
     private val water: WaterRepository,
+    private val bodies: BodyMeasureRepository,
     private val profiles: ProfileRepository,
 ) {
     fun observe(profileId: String): Flow<FeedData> = combine(
@@ -27,8 +29,9 @@ class HistoryRepository @Inject constructor(
         },
         sleeps.observeAll(profileId),
         water.observeAll(profileId),
+        bodies.observeAll(profileId),
         profiles.observeProfiles(),
-    ) { (m, w, p), s, wt, list ->
+    ) { (m, w, p), s, wt, b, list ->
         val profile = list.firstOrNull { it.id == profileId }
         FeedData(
             meals = m,
@@ -36,6 +39,7 @@ class HistoryRepository @Inject constructor(
             pressures = p,
             sleeps = s,
             waters = wt,
+            bodies = b,
             waterMlPerKg = profile?.takeIf { it.waterEnabled }?.waterMlPerKg,
         )
     }
