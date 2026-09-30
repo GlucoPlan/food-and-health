@@ -56,6 +56,14 @@ fi
 chown root:"$USER_NAME" "$ENV_FILE"
 chmod 640 "$ENV_FILE"
 
+say "Настройки отчётов"
+if [[ ! -f $REPORTS_CONFIG ]]; then
+    install -o root -g "$USER_NAME" -m 640 "$REPO_DIR/server/deploy/reports.json" "$REPORTS_CONFIG"
+    echo "создан $REPORTS_CONFIG (время завтрака, обеда, ужина) — можно править, действует сразу"
+else
+    echo "$REPORTS_CONFIG уже есть, не меняется"
+fi
+
 say "Сервис systemd"
 sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" \
     -e "s|@PORT@|$PORT|g" -e "s|@USER@|$USER_NAME|g" -e "s|@BACKUPS_DIR@|$BACKUPS_DIR|g" \

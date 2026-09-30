@@ -1,4 +1,4 @@
-"""API сервера «Еда и здоровье» (ТЗ 9, 17): /health, /sync, /photos, /reports.
+"""API сервера «Еда и здоровье» (ТЗ 9, 17): /health, /sync, /photos, /reports/day, /reports/week.
 
 Каждый запрос — с заголовком X-Family-Key, без него 401.
 """
@@ -16,7 +16,8 @@ from . import config
 from .daydata import TABLES as REPORT_TABLES
 from .daydata import Family
 from .db import TABLES, Store
-from .reports import daily
+from . import report_settings
+from .reports import daily, period
 
 PAGE_SIZE = 1000
 MAX_CHANGES = 5000
@@ -99,5 +100,15 @@ def create_app(settings: config.Settings | None = None) -> FastAPI:
         if profile is None:
             raise HTTPException(status_code=404, detail="Профиль не найден")
         return daily.build(family, profile, date_)
+
+    @app.get("/reports/week")
+    def report_week(profile_id: str, date_: Annotated[date, Query(alias="date")]) -> dict:
+        """Недельный отчёт (ТЗ 17.6) за неделю с [date] — любым её днём; с графиками."""
+        family = Family(store.records(REPORT_TABLES))
+        profile = family.profiles.get(profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="Профиль не найден")
+        first, last = period.week_of(date_)
+        return period.build(family, profile, first, last, report_settings.load(settings.reports_config))
 
     return app

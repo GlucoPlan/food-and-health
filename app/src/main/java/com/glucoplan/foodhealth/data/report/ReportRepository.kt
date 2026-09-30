@@ -22,14 +22,14 @@ class ReportRepository @Inject constructor(
     private val engine: SyncEngine,
 ) {
     /**
-     * Отчёт за день. [syncFirst] — «Сформировать сейчас» (ТЗ 17.10): сначала отправить
+     * Отчёт [kind] за день [date] или его период. [syncFirst] — «Сформировать сейчас» (ТЗ 17.10): сначала отправить
      * записи телефона, чтобы они попали в отчёт. Если синхронизация не удалась, отчёт всё равно запрашивается.
      */
-    suspend fun day(profileId: String, date: LocalDate, syncFirst: Boolean): ReportResult {
+    suspend fun report(kind: ReportKind, profileId: String, date: LocalDate, syncFirst: Boolean): ReportResult {
         val config = settings.currentConfig() ?: return ReportResult.NotConfigured
         val warning = if (syncFirst) (engine.sync() as? SyncResult.Failed)?.message else null
         return try {
-            ReportResult.Ok(backend.day(config, profileId, date), warning)
+            ReportResult.Ok(backend.report(config, kind, profileId, date), warning)
         } catch (e: SyncException) {
             ReportResult.Failed(
                 if (e is SyncException.Network) "Отчёты доступны только при связи с сервером" else e.message ?: "Ошибка"

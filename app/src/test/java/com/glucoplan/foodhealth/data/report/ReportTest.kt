@@ -50,11 +50,11 @@ class ReportTest {
     /** Сервер отчётов: запоминает, сколько записей было на сервере синхронизации в момент запроса. */
     private inner class FakeReports(var error: SyncException? = null) : ReportBackend {
         var recordsAtRequest = -1
-        var asked: Pair<String, LocalDate>? = null
-        override suspend fun day(config: ServerConfig, profileId: String, date: LocalDate): Report {
+        var asked: Triple<ReportKind, String, LocalDate>? = null
+        override suspend fun report(config: ServerConfig, kind: ReportKind, profileId: String, date: LocalDate): Report {
             error?.let { throw it }
             recordsAtRequest = server.records.size
-            asked = profileId to date
+            asked = Triple(kind, profileId, date)
             return ReportJson.parse(sample)
         }
     }
@@ -83,9 +83,9 @@ class ReportTest {
         val reports = FakeReports()
         val repo = ReportRepository(reports, a.settings, a.engine)
 
-        val result = repo.day("p", LocalDate.of(2026, 9, 29), syncFirst = true) as ReportResult.Ok
+        val result = repo.report(ReportKind.WEEK, "p", LocalDate.of(2026, 9, 29), syncFirst = true) as ReportResult.Ok
         assertThat(reports.recordsAtRequest).isEqualTo(1)
-        assertThat(reports.asked).isEqualTo("p" to LocalDate.of(2026, 9, 29))
+        assertThat(reports.asked).isEqualTo(Triple(ReportKind.WEEK, "p", LocalDate.of(2026, 9, 29)))
         assertThat(result.syncWarning).isNull()
     }
 
@@ -94,7 +94,7 @@ class ReportTest {
         val a = phone()
         a.addProduct("Молоко")
         val reports = FakeReports()
-        ReportRepository(reports, a.settings, a.engine).day("p", LocalDate.of(2026, 9, 29), syncFirst = false)
+        ReportRepository(reports, a.settings, a.engine).report(ReportKind.DAY, "p", LocalDate.of(2026, 9, 29), syncFirst = false)
         assertThat(reports.recordsAtRequest).isEqualTo(0)
     }
 
@@ -104,7 +104,7 @@ class ReportTest {
         a.addProduct("Молоко")
         server.failWith = { SyncException.Http(500) }
         val result = ReportRepository(FakeReports(), a.settings, a.engine)
-            .day("p", LocalDate.of(2026, 9, 29), syncFirst = true) as ReportResult.Ok
+            .report(ReportKind.DAY, "p", LocalDate.of(2026, 9, 29), syncFirst = true) as ReportResult.Ok
         assertThat(result.syncWarning).isNotNull()
     }
 
@@ -112,22 +112,46 @@ class ReportTest {
     fun `нет сети — понятное сообщение`() = runTest {
         val a = phone()
         val result = ReportRepository(FakeReports(SyncException.Network(IOException("timeout"))), a.settings, a.engine)
-            .day("p", LocalDate.of(2026, 9, 29), syncFirst = false)
+            .report(ReportKind.DAY, "p", LocalDate.of(2026, 9, 29), syncFirst = false)
         assertThat(result).isEqualTo(ReportResult.Failed("Отчёты доступны только при связи с сервером"))
     }
 
     @Test
     fun `сервер не настроен`() = runTest {
         val a = phone(connected = false)
-        assertThat(ReportRepository(FakeReports(), a.settings, a.engine).day("p", LocalDate.of(2026, 9, 29), true))
+        assertThat(ReportRepository(FakeReports(), a.settings, a.engine).report(ReportKind.DAY, "p", LocalDate.of(2026, 9, 29), true))
             .isEqualTo(ReportResult.NotConfigured)
     }
 
     @Test
     fun `день по умолчанию — вчера, вперёд не дальше сегодня`() {
         val today = LocalDate.of(2026, 9, 30)
-        assertThat(ReportDates.default(today)).isEqualTo(LocalDate.of(2026, 9, 29))
-        assertThat(ReportDates.canGoForward(LocalDate.of(2026, 9, 29), today)).isTrue()
-        assertThat(ReportDates.canGoForward(today, today)).isFalse()
+        assertThat(ReportDates.default(ReportKind.DAY, today)).isEqualTo(LocalDate.of(2026, 9, 29))
+        assertThat(ReportDates.canGoForward(ReportKind.DAY, LocalDate.of(2026, 9, 29), today)).isTrue()
+        assertThat(ReportDates.canGoForward(ReportKind.DAY, today, today)).isFalse()
+        assertThat(ReportDates.step(ReportKind.DAY, today, forward = false)).isEqualTo(LocalDate.of(2026, 9, 29))
+    }
+
+    @Test
+    fun `неделя по умолчанию — прошлая полная, вперёд до текущей`() {
+        val wednesday = LocalDate.of(2026, 9, 30)
+        val lastMonday = LocalDate.of(2026, 9, 21)
+        assertThat(ReportDates.default(ReportKind.WEEK, wednesday)).isEqualTo(lastMonday)
+        assertThat(ReportDates.default(ReportKind.WEEK, LocalDate.of(2026, 9, 28))).isEqualTo(lastMonday)
+        assertThat(ReportDates.step(ReportKind.WEEK, lastMonday, forward = true)).isEqualTo(LocalDate.of(2026, 9, 28))
+        assertThat(ReportDates.canGoForward(ReportKind.WEEK, lastMonday, wednesday)).isTrue()
+        assertThat(ReportDates.canGoForward(ReportKind.WEEK, LocalDate.of(2026, 9, 28), wednesday)).isFalse()
+    }
+
+    @Test
+    fun `картинки отчёта разбираются, у дневного их нет`() {
+        assertThat(ReportJson.parse(sample).images).isEmpty()
+        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)
+        val body = sample.trimEnd().removeSuffix("}") +
+            ""","images": [{"id": "weight", "title": "Вес", "png": "${java.util.Base64.getEncoder().encodeToString(png)}"}]}"""
+        val image = ReportJson.parse(body).images.single()
+        assertThat(image.id).isEqualTo("weight")
+        assertThat(image.title).isEqualTo("Вес")
+        assertThat(image.png.toList()).isEqualTo(png.toList())
     }
 }

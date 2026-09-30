@@ -8,6 +8,7 @@ DATA_DIR=/var/lib/foodhealth
 ETC_DIR=/etc/foodhealth
 ENV_FILE=$ETC_DIR/env
 TELEGRAM_CONFIG=$ETC_DIR/telegram.json
+REPORTS_CONFIG=$ETC_DIR/reports.json
 BACKUPS_DIR=/var/backups/foodhealth
 PORT=8765
 SERVICE=foodhealth

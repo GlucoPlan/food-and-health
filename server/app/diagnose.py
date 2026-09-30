@@ -7,12 +7,12 @@ import argparse
 import os
 import sys
 from collections import Counter
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from .daydata import TABLES, Family, day_bounds, local
 from .db import Store
-from .send_reports import yesterday
+from .send_reports import today
 
 TIMED = {"meal": "eaten_at", "weight": "measured_at", "blood_pressure": "measured_at", "sleep": "woke_at",
          "water": "drunk_at", "body_measure": "measured_at", "height": "measured_at"}
@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--date", type=date.fromisoformat)
     args = parser.parse_args(argv)
     data_dir = Path(os.environ.get("FH_DATA_DIR", "data")).resolve()
-    print("\n".join(report(Store(data_dir / "fh.db"), args.date or yesterday())))
+    print("\n".join(report(Store(data_dir / "fh.db"), args.date or today() - timedelta(days=1))))
     return 0
 
 

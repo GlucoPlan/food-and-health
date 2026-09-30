@@ -8,6 +8,7 @@
 import json
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -15,8 +16,8 @@ from typing import Callable
 API = "https://api.telegram.org"
 TIMEOUT = 30
 
-# (url, тело) → (HTTP-код, ответ JSON); подменяется в тестах
-Transport = Callable[[str, dict], tuple[int, dict]]
+# (url, поля, файлы {имя: (имя файла, байты)}) → (HTTP-код, ответ JSON); подменяется в тестах
+Transport = Callable[[str, dict, dict | None], tuple[int, dict]]
 
 
 class TelegramError(Exception):
@@ -25,10 +26,26 @@ class TelegramError(Exception):
         self.retryable = retryable
 
 
-def http_post(url: str, payload: dict) -> tuple[int, dict]:
-    request = urllib.request.Request(
-        url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}, method="POST",
-    )
+def _multipart(fields: dict, files: dict) -> tuple[bytes, str]:
+    boundary = uuid.uuid4().hex
+    parts = []
+    for name, value in fields.items():
+        text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
+                     + text.encode() + b"\r\n")
+    for name, (filename, data) in files.items():
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
+                     f"Content-Type: image/png\r\n\r\n".encode() + data + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    return b"".join(parts), f"multipart/form-data; boundary={boundary}"
+
+
+def http_post(url: str, payload: dict, files: dict | None = None) -> tuple[int, dict]:
+    if files:
+        body, content_type = _multipart(payload, files)
+    else:
+        body, content_type = json.dumps(payload).encode(), "application/json"
+    request = urllib.request.Request(url, data=body, headers={"Content-Type": content_type}, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
             return response.status, json.loads(response.read() or b"{}")
@@ -47,8 +64,8 @@ class Bot:
         self._token = token
         self._post = post
 
-    def call(self, method: str, **params) -> dict | list:
-        code, body = self._post(f"{API}/bot{self._token}/{method}", params)
+    def call(self, method: str, files: dict | None = None, **params) -> dict | list:
+        code, body = self._post(f"{API}/bot{self._token}/{method}", params, files)
         if code == 200 and body.get("ok"):
             return body.get("result")
         description = body.get("description") or f"HTTP {code}"
@@ -60,6 +77,18 @@ class Bot:
 
     def updates(self) -> list[dict]:
         return self.call("getUpdates", allowed_updates=["message"])
+
+    def send_photos(self, chat_id: int, photos: list[tuple[str, bytes]]) -> None:
+        """Графики (ТЗ 17.6): одна картинка — фото с подписью, несколько — альбомом (до 10)."""
+        for start in range(0, len(photos), 10):
+            chunk = photos[start:start + 10]
+            if len(chunk) == 1:
+                title, png = chunk[0]
+                self.call("sendPhoto", files={"photo": ("chart.png", png)}, chat_id=str(chat_id), caption=title)
+                continue
+            media = [{"type": "photo", "media": f"attach://p{i}", "caption": title} for i, (title, _) in enumerate(chunk)]
+            files = {f"p{i}": (f"chart{i}.png", png) for i, (_, png) in enumerate(chunk)}
+            self.call("sendMediaGroup", files=files, chat_id=str(chat_id), media=media)
 
     def send(self, chat_id: int, html: str) -> None:
         self.call(

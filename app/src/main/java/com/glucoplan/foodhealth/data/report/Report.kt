@@ -7,6 +7,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.util.Base64
 
 /** Кусок строки отчёта; [bold] — выделить. */
 data class ReportSpan(val text: String, val bold: Boolean)
@@ -26,8 +27,14 @@ data class ReportLine(val spans: List<ReportSpan>, val style: LineStyle = LineSt
 
 data class ReportSection(val title: String, val lines: List<ReportLine>)
 
+/** График (ТЗ 17.6): PNG, пришедший в ответе сервера. */
+class ReportImage(val id: String, val title: String, val png: ByteArray)
+
+/** Вид отчёта; [code] — путь на сервере /reports/{code}. */
+enum class ReportKind(val code: String) { DAY("day"), WEEK("week") }
+
 /**
- * Отчёт, собранный сервером (ТЗ 17.5): выжимка и подробности.
+ * Отчёт, собранный сервером (ТЗ 17.5, 17.6): выжимка, подробности, графики.
  * Сервер строит его заново по каждому запросу, телефон его не хранит.
  */
 data class Report(
@@ -38,6 +45,7 @@ data class Report(
     val empty: Boolean,
     val summary: List<ReportLine>,
     val sections: List<ReportSection>,
+    val images: List<ReportImage> = emptyList(),
 )
 
 object ReportJson {
@@ -54,6 +62,10 @@ object ReportJson {
             sections = root.getValue("sections").jsonArray.map { s ->
                 val section = s.jsonObject
                 ReportSection(section.string("title"), section.getValue("lines").jsonArray.map { line(it.jsonObject) })
+            },
+            images = root["images"]?.jsonArray.orEmpty().map { i ->
+                val image = i.jsonObject
+                ReportImage(image.string("id"), image.string("title"), Base64.getDecoder().decode(image.string("png")))
             },
         )
     }

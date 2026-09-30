@@ -71,7 +71,7 @@ class FakeTelegram:
         self.updates = list(updates)
         self.fail = fail  # (chat_id → HTTP-код) или None
 
-    def post(self, url: str, payload: dict):
+    def post(self, url: str, payload: dict, files=None):
         method = url.rsplit("/", 1)[1]
         if method == "getMe":
             return (401, {"ok": False, "description": "Unauthorized"}) if "bad" in url else \

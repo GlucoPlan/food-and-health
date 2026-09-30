@@ -87,20 +87,20 @@ def prune(backups_dir: Path, keep: int = KEEP) -> list[Path]:
     return old
 
 
-# Настройки Telegram (ТЗ 17.7) лежат рядом с файлом окружения и переезжают вместе с ним
-TELEGRAM_CONFIG = "telegram.json"
+# Настройки рядом с файлом окружения переезжают вместе с ним: Telegram (ТЗ 17.7), отчёты (17.6)
+CONFIG_FILES = ("telegram.json", "reports.json")
 
 
 def export_archive(backup: Path, env_file: Path | None, out: Path) -> Path:
     """Архив для переезда: копия данных, файл настроек с ключом семьи (телефоны не придётся перенастраивать)
-    и настройки Telegram, если есть."""
+    и настройки Telegram и отчётов, если есть."""
     with tarfile.open(out, "w:gz") as tar:
         tar.add(backup, arcname="backup")
         if env_file is not None and env_file.is_file():
             tar.add(env_file, arcname="env")
-            telegram = env_file.parent / TELEGRAM_CONFIG
-            if telegram.is_file():
-                tar.add(telegram, arcname=TELEGRAM_CONFIG)
+            for name in CONFIG_FILES:
+                if (env_file.parent / name).is_file():
+                    tar.add(env_file.parent / name, arcname=name)
     os.chmod(out, 0o600)
     return out
 
@@ -147,9 +147,9 @@ def restore(source: Path, data_dir: Path, env_out: Path | None = None) -> None:
 
         if env_out is not None and env_in is not None and env_in.is_file():
             shutil.copy2(env_in, env_out)
-            telegram_in = Path(tmp) / TELEGRAM_CONFIG
-            if telegram_in.is_file():
-                shutil.copy2(telegram_in, env_out.parent / TELEGRAM_CONFIG)
+            for name in CONFIG_FILES:
+                if (Path(tmp) / name).is_file():
+                    shutil.copy2(Path(tmp) / name, env_out.parent / name)
 
 
 def main(argv: list[str] | None = None) -> int:

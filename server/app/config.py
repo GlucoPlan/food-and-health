@@ -2,6 +2,7 @@
 
 FH_FAMILY_KEY  ключ семьи (обязателен). В репозиторий не попадает (ТЗ 8.5).
 FH_DATA_DIR    папка данных: база fh.db и фото в photos/. Переезд = перенос этой папки.
+FH_REPORTS_CONFIG  настройки отчётов (время приёмов пищи), по умолчанию /etc/foodhealth/reports.json.
 """
 
 import os
@@ -13,6 +14,8 @@ from pathlib import Path
 class Settings:
     family_key: str
     data_dir: Path
+    # None — настройки отчётов по умолчанию (тесты, разработка)
+    reports_config: Path | None = None
 
     @property
     def db_path(self) -> Path:
@@ -28,4 +31,5 @@ def from_env() -> Settings:
     if len(key) < 16:
         raise RuntimeError("FH_FAMILY_KEY не задан или короче 16 символов")
     data_dir = Path(os.environ.get("FH_DATA_DIR", "data")).resolve()
-    return Settings(family_key=key, data_dir=data_dir)
+    reports = Path(os.environ.get("FH_REPORTS_CONFIG", "/etc/foodhealth/reports.json"))
+    return Settings(family_key=key, data_dir=data_dir, reports_config=reports)

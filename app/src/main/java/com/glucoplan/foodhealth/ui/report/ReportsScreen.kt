@@ -36,7 +36,16 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import com.glucoplan.foodhealth.data.report.LineStyle
+import com.glucoplan.foodhealth.data.report.ReportImage
+import com.glucoplan.foodhealth.data.report.ReportKind
 import com.glucoplan.foodhealth.data.report.Report
 import com.glucoplan.foodhealth.data.report.ReportLine
 import java.time.LocalDate
@@ -44,8 +53,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val DAY = DateTimeFormatter.ofPattern("d MMMM, EEEE", Locale.forLanguageTag("ru"))
+private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("ru"))
 
-/** Отчёты и анализ (ТЗ 17.10): отчёты владельца телефона. Пока — итоги дня. */
+/** Отчёты и анализ (ТЗ 17.10): отчёты владельца телефона — итоги дня и недели. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewModel()) {
@@ -73,18 +83,27 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            PrimaryTabRow(selectedTabIndex = state.kind.ordinal) {
+                ReportKind.entries.forEach { kind ->
+                    Tab(
+                        selected = kind == state.kind,
+                        onClick = { viewModel.selectKind(kind) },
+                        text = { Text(if (kind == ReportKind.DAY) "День" else "Неделя") },
+                    )
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = viewModel::previous) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущий день")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад")
                 }
                 Text(
-                    dayTitle(state.date),
+                    if (state.kind == ReportKind.DAY) dayTitle(state.date) else weekTitle(state.date),
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = viewModel::next, enabled = state.canGoForward) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Следующий день")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Вперёд")
                 }
             }
             Button(onClick = viewModel::refresh, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
@@ -111,6 +130,22 @@ private fun dayTitle(date: LocalDate): String {
     return prefix + DAY.format(date)
 }
 
+private fun weekTitle(monday: LocalDate): String {
+    val sunday = monday.plusDays(6)
+    val thisWeek = ReportDates.weekStart(LocalDate.now())
+    val prefix = when (monday) {
+        thisWeek -> "Эта неделя, "
+        thisWeek.minusWeeks(1) -> "Прошлая неделя, "
+        else -> ""
+    }
+    val range = if (monday.month == sunday.month) {
+        "${monday.dayOfMonth}–${SHORT_DATE.format(sunday)}"
+    } else {
+        "${SHORT_DATE.format(monday)} – ${SHORT_DATE.format(sunday)}"
+    }
+    return prefix + range
+}
+
 @Composable
 private fun ReportContent(report: Report) {
     Card(Modifier.fillMaxWidth()) {
@@ -118,6 +153,7 @@ private fun ReportContent(report: Report) {
             report.summary.forEach { ReportText(it) }
         }
     }
+    report.images.forEach { ReportChart(it) }
     report.sections.forEach { section ->
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(section.title, style = MaterialTheme.typography.titleSmall)
@@ -145,6 +181,19 @@ private fun ReportText(line: ReportLine) {
         )
         LineStyle.NORMAL -> Text(text)
     }
+}
+
+/** График с сервера (ТЗ 17.6). */
+@Composable
+private fun ReportChart(image: ReportImage) {
+    val bitmap = remember(image) { BitmapFactory.decodeByteArray(image.png, 0, image.png.size)?.asImageBitmap() }
+        ?: return
+    Image(
+        bitmap = bitmap,
+        contentDescription = image.title,
+        contentScale = ContentScale.FillWidth,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
