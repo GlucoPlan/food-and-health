@@ -1,9 +1,12 @@
 # Шаблон: install.sh подставляет пути. Запускается таймером foodhealth-backup.timer.
 [Unit]
-Description=Food and health server backup
+Description=Food and health server cleanup and backup
 
 [Service]
 Type=oneshot
 EnvironmentFile=@ENV_FILE@
 WorkingDirectory=@APP_DIR@
+# Сначала — удаление ненужных фото кастрюль (ТЗ 15.8), чтобы они не попадали в новые копии;
+# в старых копиях они ещё 30 дней остаются
+ExecStart=@APP_DIR@/venv/bin/python -m app.cleanup
 ExecStart=@APP_DIR@/venv/bin/python -m app.backup --backups-dir @BACKUPS_DIR@ backup --keep 30
