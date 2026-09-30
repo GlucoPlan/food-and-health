@@ -197,6 +197,7 @@ def test_настройка_токен_получатели_пробные_со�
     env = tmp_path / "env"
     env.write_text("FH_FAMILY_KEY=k\n")
     env.chmod(0o640)
+    before = env.stat()
     config = tmp_path / "telegram.json"
     tg = FakeTelegram(updates=[update(1, "Иван", "ivan"), update(2, "Рита")])
     profiles = [{"id": "kid", "name": "Дочь"}, {"id": "me", "name": "Я"}, {"id": "wife", "name": "Рита"}]
@@ -208,6 +209,8 @@ def test_настройка_токен_получатели_пробные_со�
     assert code == 0
     assert env.read_text() == "FH_FAMILY_KEY=k\nFH_TELEGRAM_TOKEN=1:good\n"
     assert oct(env.stat().st_mode & 0o777) == "0o640"
+    # Владелец и группа прежние: иначе сервис не прочитает файл (под root группа стала бы root)
+    assert (env.stat().st_uid, env.stat().st_gid) == (before.st_uid, before.st_gid)
     assert load_recipients(config) == [
         Recipient(1, "Иван (@ivan)", ("kid", "me")), Recipient(2, "Рита", ("kid", "wife")),
     ]

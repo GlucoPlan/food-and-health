@@ -36,7 +36,10 @@ def write_token(env_file: Path, token: str) -> None:
     lines.append(f"{TOKEN_KEY}={token}")
     tmp = env_file.with_suffix(".tmp")
     tmp.write_text("\n".join(lines) + "\n")
-    os.chmod(tmp, env_file.stat().st_mode & 0o777)
+    # Новый файл — с прежними владельцем, группой и правами: сервис читает его через группу
+    st = env_file.stat()
+    os.chmod(tmp, st.st_mode & 0o777)
+    os.chown(tmp, st.st_uid, st.st_gid)
     tmp.replace(env_file)
 
 
