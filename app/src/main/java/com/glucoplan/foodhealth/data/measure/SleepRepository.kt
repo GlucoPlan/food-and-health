@@ -29,6 +29,10 @@ class SleepRepository @Inject constructor(
     fun observeRecent(profileId: String, limit: Int = WeightRepository.RECENT): Flow<List<SleepRecord>> =
         dao.observeRecent(profileId, limit).map { list -> list.map { it.toRecord() } }
 
+    /** Все записи профиля — для «Истории» (15.4). */
+    fun observeAll(profileId: String): Flow<List<SleepRecord>> =
+        dao.observeAll(profileId).map { list -> list.map { it.toRecord() } }
+
     suspend fun get(id: String): SleepRecord? = dao.getById(id)?.takeIf { !it.deleted }?.toRecord()
 
     /** Новая запись ([id] = null) или исправление. */

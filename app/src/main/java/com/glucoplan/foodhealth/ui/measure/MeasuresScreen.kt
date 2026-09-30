@@ -54,6 +54,9 @@ fun MeasuresScreen(
     val dialog by viewModel.dialog.collectAsStateWithLifecycle()
     val sleepDialog by viewModel.sleepDialog.collectAsStateWithLifecycle()
     val recorded by viewModel.recorded.collectAsStateWithLifecycle()
+    val closed by viewModel.closed.collectAsStateWithLifecycle()
+
+    LaunchedEffect(closed) { if (closed) onBack() }
 
     LaunchedEffect(recorded) {
         recorded?.let {

@@ -166,7 +166,15 @@ fun AppNavigation(settingsBadge: Boolean) {
             }
             navigation(startDestination = HISTORY_LIST, route = Tab.History.route) {
                 composable(HISTORY_LIST) {
-                    HistoryScreen(onOpenMeal = { id -> navController.navigate("$HISTORY_MEAL_BASE?id=$id") })
+                    HistoryScreen(
+                        onOpenMeal = { id -> navController.navigate("$HISTORY_MEAL_BASE?id=$id") },
+                        onOpenMeasure = { kind, id, profileId ->
+                            navController.navigate(
+                                "$MEASURES?${MeasuresViewModel.ARG_EDIT}=${MeasuresViewModel.editArg(kind, id)}" +
+                                    (profileId?.let { "&${MeasuresViewModel.ARG_PROFILE}=$it" } ?: "")
+                            )
+                        },
+                    )
                 }
                 composable(
                     route = "$HISTORY_MEAL_BASE?${MealEditViewModel.ARG_ID}={${MealEditViewModel.ARG_ID}}",
@@ -293,8 +301,12 @@ fun AppNavigation(settingsBadge: Boolean) {
                 )
             }
             composable(
-                route = "$MEASURES?${MeasuresViewModel.ARG_PROFILE}={${MeasuresViewModel.ARG_PROFILE}}",
-                arguments = listOf(optionalIdArgument(MeasuresViewModel.ARG_PROFILE)),
+                route = "$MEASURES?${MeasuresViewModel.ARG_PROFILE}={${MeasuresViewModel.ARG_PROFILE}}&" +
+                    "${MeasuresViewModel.ARG_EDIT}={${MeasuresViewModel.ARG_EDIT}}",
+                arguments = listOf(
+                    optionalIdArgument(MeasuresViewModel.ARG_PROFILE),
+                    optionalIdArgument(MeasuresViewModel.ARG_EDIT),
+                ),
             ) {
                 MeasuresScreen(
                     onBack = { navController.popBackStack() },

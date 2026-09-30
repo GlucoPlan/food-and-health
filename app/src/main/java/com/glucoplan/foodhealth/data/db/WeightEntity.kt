@@ -31,6 +31,10 @@ interface WeightDao {
     @Query("SELECT * FROM weight WHERE profile_id = :profileId AND deleted = 0 ORDER BY measured_at DESC LIMIT 1")
     suspend fun latest(profileId: String): WeightEntity?
 
+    /** Все замеры профиля — для «Истории» (15.4). */
+    @Query("SELECT * FROM weight WHERE profile_id = :profileId AND deleted = 0")
+    fun observeAll(profileId: String): Flow<List<WeightEntity>>
+
     @Query("SELECT * FROM weight WHERE id = :id")
     suspend fun getById(id: String): WeightEntity?
 

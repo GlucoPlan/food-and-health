@@ -24,6 +24,10 @@ class WeightRepository @Inject constructor(
     /** Последний вес — для нормы воды (15.3). */
     suspend fun latest(profileId: String): WeightRecord? = dao.latest(profileId)?.toRecord()
 
+    /** Все записи профиля — для «Истории» (15.4). */
+    fun observeAll(profileId: String): Flow<List<WeightRecord>> =
+        dao.observeAll(profileId).map { list -> list.map { it.toRecord() } }
+
     suspend fun get(id: String): WeightRecord? = dao.getById(id)?.takeIf { !it.deleted }?.toRecord()
 
     /**

@@ -30,6 +30,10 @@ class BloodPressureRepository @Inject constructor(
     fun observeRecent(profileId: String, limit: Int = WeightRepository.RECENT): Flow<List<PressureRecord>> =
         dao.observeRecent(profileId, limit).map { list -> list.map { it.toRecord() } }
 
+    /** Все записи профиля — для «Истории» (15.4). */
+    fun observeAll(profileId: String): Flow<List<PressureRecord>> =
+        dao.observeAll(profileId).map { list -> list.map { it.toRecord() } }
+
     suspend fun get(id: String): PressureRecord? = dao.getById(id)?.takeIf { !it.deleted }?.toRecord()
 
     /** Новое измерение ([id] = null) или исправление; [at] null — «сейчас»; пустой пульс — не указан. */

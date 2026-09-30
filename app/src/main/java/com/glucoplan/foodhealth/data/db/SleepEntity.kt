@@ -35,6 +35,9 @@ interface SleepDao {
     @Query("SELECT * FROM sleep WHERE profile_id = :profileId AND deleted = 0 ORDER BY woke_at DESC LIMIT :limit")
     fun observeRecent(profileId: String, limit: Int): Flow<List<SleepEntity>>
 
+    @Query("SELECT * FROM sleep WHERE profile_id = :profileId AND deleted = 0")
+    fun observeAll(profileId: String): Flow<List<SleepEntity>>
+
     @Query("SELECT * FROM sleep WHERE id = :id")
     suspend fun getById(id: String): SleepEntity?
 

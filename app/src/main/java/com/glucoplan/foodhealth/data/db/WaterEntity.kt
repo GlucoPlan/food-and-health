@@ -41,6 +41,9 @@ interface WaterDao {
     @Query("SELECT * FROM water WHERE profile_id = :profileId AND deleted = 0 ORDER BY drunk_at DESC, updated_at DESC LIMIT 1")
     suspend fun latest(profileId: String): WaterEntity?
 
+    @Query("SELECT * FROM water WHERE profile_id = :profileId AND deleted = 0")
+    fun observeAll(profileId: String): Flow<List<WaterEntity>>
+
     @Query("SELECT * FROM water WHERE id = :id")
     suspend fun getById(id: String): WaterEntity?
 

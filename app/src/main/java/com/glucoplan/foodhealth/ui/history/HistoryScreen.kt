@@ -40,7 +40,20 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.glucoplan.foodhealth.data.NumberText
-import com.glucoplan.foodhealth.data.meal.HistoryDay
+import com.glucoplan.foodhealth.data.history.FeedDay
+import com.glucoplan.foodhealth.data.history.FeedEntry
+import com.glucoplan.foodhealth.data.measure.SleepRecord
+import com.glucoplan.foodhealth.data.measure.SleepTime
+import com.glucoplan.foodhealth.data.measure.WaterNorm
+import com.glucoplan.foodhealth.ui.measure.MeasuresViewModel
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.foundation.layout.size
 import com.glucoplan.foodhealth.data.meal.HistoryMeal
 import com.glucoplan.foodhealth.data.meal.Sd1
 import com.glucoplan.foodhealth.data.profile.Profile
@@ -53,7 +66,12 @@ import java.util.Locale
 import java.util.TimeZone
 
 @Composable
-fun HistoryScreen(onOpenMeal: (mealId: String) -> Unit, viewModel: HistoryViewModel = hiltViewModel()) {
+fun HistoryScreen(
+    onOpenMeal: (mealId: String) -> Unit,
+    /** Открыть замер на правку: вид («weight», «pressure», «sleep», «water»), id, чей. */
+    onOpenMeasure: (kind: String, id: String, profileId: String?) -> Unit,
+    viewModel: HistoryViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var choosingDay by remember { mutableStateOf(false) }
 
@@ -94,15 +112,33 @@ fun HistoryScreen(onOpenMeal: (mealId: String) -> Unit, viewModel: HistoryViewMo
             !state.loaded -> Unit
             state.days.isEmpty() -> Box(Modifier.fillMaxSize().padding(32.dp), Alignment.Center) {
                 Text(
-                    if (state.day == null) "Записанных приёмов пока нет" else "В этот день приёмов нет",
+                    if (state.day == null) "Записей пока нет" else "В этот день записей нет",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             else -> LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
                 state.days.forEach { d ->
-                    item(key = "day${d.dayStart}") { DayHeader(d) }
-                    items(d.meals, key = { it.id }) { meal ->
-                        MealCard(meal, state.sd1Profile, onClick = { onOpenMeal(meal.id) })
+                    item(key = "day${d.dayStart}") {
+                        DayHeader(
+                            day = d,
+                            waterExpanded = d.dayStart in state.waterExpanded,
+                            onToggleWater = { viewModel.toggleWater(d.dayStart) },
+                            onOpenWater = { id -> onOpenMeasure(MeasuresViewModel.KIND_WATER, id, state.profileId) },
+                        )
+                    }
+                    items(d.entries, key = { it.key }) { entry ->
+                        when (entry) {
+                            is FeedEntry.Meal -> MealCard(entry.meal, state.sd1Profile, onClick = { onOpenMeal(entry.meal.id) })
+                            is FeedEntry.Weight -> MeasureRow(
+                                Icons.Filled.MonitorWeight, entry.time, "Вес ${NumberText.format(entry.record.kg, 1)} кг",
+                            ) { onOpenMeasure(MeasuresViewModel.KIND_WEIGHT, entry.record.id, state.profileId) }
+                            is FeedEntry.Pressure -> MeasureRow(
+                                Icons.Filled.Favorite, entry.time, "Давление ${entry.record.text}",
+                            ) { onOpenMeasure(MeasuresViewModel.KIND_PRESSURE, entry.record.id, state.profileId) }
+                            is FeedEntry.Sleep -> MeasureRow(Icons.Filled.Bedtime, entry.time, sleepText(entry.record)) {
+                                onOpenMeasure(MeasuresViewModel.KIND_SLEEP, entry.record.id, state.profileId)
+                            }
+                        }
                     }
                 }
             }
@@ -114,17 +150,64 @@ fun HistoryScreen(onOpenMeal: (mealId: String) -> Unit, viewModel: HistoryViewMo
     }
 }
 
+/** Заголовок дня: дата, итоги КБЖУ по еде, вода одной строкой с раскрытием (15.4). */
 @Composable
-private fun DayHeader(day: HistoryDay) {
+private fun DayHeader(day: FeedDay, waterExpanded: Boolean, onToggleWater: () -> Unit, onOpenWater: (String) -> Unit) {
     Column(Modifier.padding(top = 16.dp, bottom = 8.dp)) {
         Text(dayTitle(day.dayStart), style = MaterialTheme.typography.titleMedium)
-        Text(
-            nutritionLine(day.total),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        day.food?.let {
+            Text(nutritionLine(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        day.water?.let { w ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.clickable(onClick = onToggleWater).padding(vertical = 4.dp),
+            ) {
+                Icon(Icons.Filled.LocalDrink, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Text(
+                    "Вода " + WaterNorm.litres(w.totalMl) + (w.normMl?.let { " из ${WaterNorm.litres(it)}" } ?: "") + " л",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Icon(
+                    if (waterExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (waterExpanded) "Свернуть" else "Показать записи воды",
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            if (waterExpanded) {
+                w.entries.forEach { e ->
+                    Text(
+                        "${e.ml} мл · ${HM.format(Date(e.drunkAt))}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().clickable { onOpenWater(e.id) }.padding(start = 24.dp, top = 6.dp, bottom = 6.dp),
+                    )
+                }
+            }
+        }
     }
 }
+
+/** Замер в ленте дня — одна строка, отличная от карточек приёмов. */
+@Composable
+private fun MeasureRow(icon: ImageVector, time: Long, text: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(HM.format(Date(time)), style = MaterialTheme.typography.titleSmall)
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+private val HM = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+/** «Сон 23:40 → 07:15, 7 ч 35 мин · хорошо». */
+private fun sleepText(s: SleepRecord): String =
+    "Сон ${HM.format(Date(s.asleepAt))} → ${HM.format(Date(s.wokeAt))}, ${SleepTime.durationText(s.minutes)}" +
+        (s.quality?.let { " · ${it.label.lowercase()}" } ?: "")
 
 @Composable
 private fun MealCard(meal: HistoryMeal, sd1: Profile?, onClick: () -> Unit) {

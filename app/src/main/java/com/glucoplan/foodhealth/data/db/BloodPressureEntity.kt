@@ -31,6 +31,9 @@ interface BloodPressureDao {
     )
     fun observeRecent(profileId: String, limit: Int): Flow<List<BloodPressureEntity>>
 
+    @Query("SELECT * FROM blood_pressure WHERE profile_id = :profileId AND deleted = 0")
+    fun observeAll(profileId: String): Flow<List<BloodPressureEntity>>
+
     @Query("SELECT * FROM blood_pressure WHERE id = :id")
     suspend fun getById(id: String): BloodPressureEntity?
 

@@ -30,6 +30,10 @@ class WaterRepository @Inject constructor(
     fun observeLastVolume(profileId: String): Flow<Int> =
         dao.observeLatest(profileId).map { it?.ml ?: WaterNorm.DEFAULT_ML }
 
+    /** Все записи профиля — для «Истории» (15.4). */
+    fun observeAll(profileId: String): Flow<List<WaterRecord>> =
+        dao.observeAll(profileId).map { list -> list.map { it.toRecord() } }
+
     suspend fun get(id: String): WaterRecord? = dao.getById(id)?.takeIf { !it.deleted }?.toRecord()
 
     /** Записать новую воду ([id] = null) или исправить; [at] null — «сейчас». */

@@ -80,6 +80,14 @@ class MeasuresViewModel @Inject constructor(
     /** null — тот, кто выбран на экране приёма пищи (аргумент), иначе владелец. */
     private val chosen = MutableStateFlow(savedStateHandle.get<String>(ARG_PROFILE))
 
+    /** Открыт из «Истории» на конкретной записи («weight:<id>»): после правки — сразу назад. */
+    private val editArg: String? = savedStateHandle.get<String>(ARG_EDIT)
+
+    private val _closed = MutableStateFlow(false)
+
+    /** Правка из «Истории» закончена — экран закрывается. */
+    val closed: StateFlow<Boolean> = _closed.asStateFlow()
+
     private val profileState = combine(profiles.observeProfiles(), devicePrefs.ownerId, chosen) { list, owner, c ->
         list to (c?.takeIf { id -> list.any { it.id == id } } ?: owner)
     }
@@ -132,32 +140,42 @@ class MeasuresViewModel @Inject constructor(
         )
     }
 
+    /** Правка записи по id — в том числе старой, не из последних пяти (открытой из «Истории»). */
     fun edit(kind: MeasureKind, id: String) {
-        val s = state.value
-        _dialog.value = when (kind) {
-            MeasureKind.WEIGHT -> s.weights.firstOrNull { it.id == id }?.let {
-                MeasureDialogState(kind, id, listOf(NumberText.format(it.kg, 1)), it.measuredAt)
+        viewModelScope.launch {
+            _dialog.value = when (kind) {
+                MeasureKind.WEIGHT -> weights.get(id)?.let {
+                    MeasureDialogState(kind, id, listOf(NumberText.format(it.kg, 1)), it.measuredAt)
+                }
+                MeasureKind.WATER -> water.get(id)?.let {
+                    MeasureDialogState(kind, id, listOf(it.ml.toString()), it.drunkAt)
+                }
+                MeasureKind.PRESSURE -> pressures.get(id)?.let {
+                    MeasureDialogState(
+                        kind, id, listOf(it.systolic.toString(), it.diastolic.toString(), it.pulse?.toString().orEmpty()),
+                        it.measuredAt,
+                    )
+                }
             }
-            MeasureKind.WATER -> s.waterToday.firstOrNull { it.id == id }?.let {
-                MeasureDialogState(kind, id, listOf(it.ml.toString()), it.drunkAt)
-            }
-            MeasureKind.PRESSURE -> s.pressures.firstOrNull { it.id == id }?.let {
-                MeasureDialogState(
-                    kind, id, listOf(it.systolic.toString(), it.diastolic.toString(), it.pulse?.toString().orEmpty()),
-                    it.measuredAt,
-                )
-            }
+            if (_dialog.value == null) closeIfFromHistory()
         }
+    }
+
+    /** Открыт из «Истории» — после правки, удаления или отмены сразу назад. */
+    private fun closeIfFromHistory() {
+        if (editArg != null) _closed.value = true
     }
 
     fun dismiss() {
         _dialog.value = null
+        closeIfFromHistory()
     }
 
     /** [at] null — «сейчас». */
     fun save(values: List<String>, at: Long?) {
         val dialog = _dialog.value ?: return
-        val profileId = state.value.profileId ?: return
+        // При правке запись остаётся у своего человека — выбранный профиль не нужен
+        val profileId = state.value.profileId ?: if (dialog.editingId != null) "" else return
         viewModelScope.launch {
             val result = when (dialog.kind) {
                 MeasureKind.WEIGHT -> weights.save(dialog.editingId, profileId, values[0], at)
@@ -167,8 +185,8 @@ class MeasuresViewModel @Inject constructor(
             when (result) {
                 is MeasureSave.Saved -> {
                     _dialog.value = null
-                    // Новая запись — вернуться к еде (15.4); правка — остаться в списке
-                    if (dialog.editingId == null) _recorded.value = result.message
+                    // Новая запись — вернуться к еде (15.4); правка — остаться в списке (или назад в «Историю»)
+                    if (dialog.editingId == null) _recorded.value = result.message else closeIfFromHistory()
                 }
                 is MeasureSave.Invalid -> _dialog.value = dialog.copy(errors = result.errors)
             }
@@ -185,6 +203,7 @@ class MeasuresViewModel @Inject constructor(
                 MeasureKind.WATER -> water.delete(id)
             }
             _dialog.value = null
+            closeIfFromHistory()
         }
     }
 
@@ -212,31 +231,34 @@ class MeasuresViewModel @Inject constructor(
     }
 
     fun editSleep(id: String) {
-        val r = state.value.sleeps.firstOrNull { it.id == id } ?: return
-        val zone = ZoneId.systemDefault()
-        val woke = Instant.ofEpochMilli(r.wokeAt).atZone(zone)
-        _sleepDialog.value = SleepDialogState(
-            editingId = id,
-            wakeDate = woke.toLocalDate(),
-            wakeTime = woke.toLocalTime().withSecond(0).withNano(0),
-            asleepTime = Instant.ofEpochMilli(r.asleepAt).atZone(zone).toLocalTime().withSecond(0).withNano(0),
-            quality = r.quality,
-        )
+        viewModelScope.launch {
+            val r = sleeps.get(id) ?: return@launch closeIfFromHistory()
+            val zone = ZoneId.systemDefault()
+            val woke = Instant.ofEpochMilli(r.wokeAt).atZone(zone)
+            _sleepDialog.value = SleepDialogState(
+                editingId = id,
+                wakeDate = woke.toLocalDate(),
+                wakeTime = woke.toLocalTime().withSecond(0).withNano(0),
+                asleepTime = Instant.ofEpochMilli(r.asleepAt).atZone(zone).toLocalTime().withSecond(0).withNano(0),
+                quality = r.quality,
+            )
+        }
     }
 
     fun dismissSleep() {
         _sleepDialog.value = null
+        closeIfFromHistory()
     }
 
     fun saveSleep(wakeDate: LocalDate, wakeTime: LocalTime, asleepTime: LocalTime, quality: SleepQuality?) {
         val dialog = _sleepDialog.value ?: return
-        val profileId = state.value.profileId ?: return
+        val profileId = state.value.profileId ?: if (dialog.editingId != null) "" else return
         val (asleepAt, wokeAt) = SleepTime.moments(wakeDate, wakeTime, asleepTime)
         viewModelScope.launch {
             when (val r = sleeps.save(dialog.editingId, profileId, asleepAt, wokeAt, quality)) {
                 is MeasureSave.Saved -> {
                     _sleepDialog.value = null
-                    if (dialog.editingId == null) _recorded.value = r.message
+                    if (dialog.editingId == null) _recorded.value = r.message else closeIfFromHistory()
                 }
                 is MeasureSave.Invalid -> _sleepDialog.value = dialog.copy(
                     wakeDate = wakeDate, wakeTime = wakeTime, asleepTime = asleepTime, quality = quality, errors = r.errors,
@@ -250,6 +272,7 @@ class MeasuresViewModel @Inject constructor(
         viewModelScope.launch {
             sleeps.delete(id)
             _sleepDialog.value = null
+            closeIfFromHistory()
         }
     }
 
@@ -257,7 +280,28 @@ class MeasuresViewModel @Inject constructor(
         _recorded.value = null
     }
 
+    // В конце класса: все поля выше уже созданы, открыть можно любую запись, в том числе сон
+    init {
+        // «weight:<id>», «pressure:<id>», «water:<id>», «sleep:<id>»
+        editArg?.split(':', limit = 2)?.takeIf { it.size == 2 }?.let { (kind, id) ->
+            when (kind) {
+                KIND_WEIGHT -> edit(MeasureKind.WEIGHT, id)
+                KIND_PRESSURE -> edit(MeasureKind.PRESSURE, id)
+                KIND_WATER -> edit(MeasureKind.WATER, id)
+                KIND_SLEEP -> editSleep(id)
+            }
+        }
+    }
+
     companion object {
         const val ARG_PROFILE = "profile"
+        const val ARG_EDIT = "edit"
+        const val KIND_WEIGHT = "weight"
+        const val KIND_PRESSURE = "pressure"
+        const val KIND_WATER = "water"
+        const val KIND_SLEEP = "sleep"
+
+        /** Аргумент [ARG_EDIT]: какую запись открыть. */
+        fun editArg(kind: String, id: String) = "$kind:$id"
     }
 }
