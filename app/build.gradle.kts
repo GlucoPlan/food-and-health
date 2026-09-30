@@ -95,6 +95,14 @@ kotlin {
     }
 }
 
+// В логе CI — полный текст упавшего теста (ожидалось / получено), а не только номер строки
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
 ksp {
     // Схемы Room хранятся в репозитории: по ним пишутся тесты миграций
     arg("room.schemaLocation", "$projectDir/schemas")
