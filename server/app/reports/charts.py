@@ -5,8 +5,9 @@ import os
 import tempfile
 from datetime import date, datetime
 
-# Кэш шрифтов matplotlib — во временной папке, а не в домашней пользователя сервиса (это папка данных)
-os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "foodhealth-matplotlib"))
+# Кэш шрифтов matplotlib — во временной папке, а не в домашней пользователя сервиса (это папка данных).
+# Своя папка у каждого пользователя: папку, созданную другим (например, тестами), не записать
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), f"foodhealth-matplotlib-{os.getuid()}"))
 
 import matplotlib  # noqa: E402
 
