@@ -254,3 +254,11 @@ def test_без_настройки_рассылка_молча_выходит(mo
     monkeypatch.delenv("FH_TELEGRAM_TOKEN", raising=False)
     assert send_reports.main(["--config", str(tmp_path / "нет.json")]) == 0
     assert "не настроен" in capsys.readouterr().out
+
+
+def test_диагностика_видит_записи_дня(store):
+    from app import diagnose
+    text = "\n".join(diagnose.report(store, DAY))
+    assert "meal: 1 (удалённых 0)" in text
+    assert "Профиль «Дочь»" in text
+    assert "meal: всего 1, за день 1, последняя 29.09 08:00" in text
