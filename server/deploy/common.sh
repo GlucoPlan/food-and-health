@@ -7,6 +7,7 @@ APP_DIR=/opt/foodhealth
 DATA_DIR=/var/lib/foodhealth
 ETC_DIR=/etc/foodhealth
 ENV_FILE=$ETC_DIR/env
+TELEGRAM_CONFIG=$ETC_DIR/telegram.json
 BACKUPS_DIR=/var/backups/foodhealth
 PORT=8765
 SERVICE=foodhealth
@@ -40,4 +41,11 @@ run_backup_tool() {
     # shellcheck disable=SC2046
     env $(grep -v '^#' "$ENV_FILE" | xargs) \
         "$APP_DIR/venv/bin/python" -m app.backup --backups-dir "$BACKUPS_DIR" "$@"
+}
+
+# Python сервиса от имени его пользователя, с его окружением; секреты не попадают в командную строку
+run_as_service() {
+    # shellcheck disable=SC2016
+    runuser -u "$USER_NAME" -- bash -c 'set -a; . "$1"; set +a; shift; exec "$@"' _ \
+        "$ENV_FILE" "$APP_DIR/venv/bin/python" "$@"
 }

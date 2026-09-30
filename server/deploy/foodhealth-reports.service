@@ -1,0 +1,21 @@
+# Шаблон: install.sh подставляет пути. Запускается таймером foodhealth-reports.timer.
+[Unit]
+Description=Food and health daily reports to Telegram
+After=network-online.target foodhealth.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@USER@
+EnvironmentFile=@ENV_FILE@
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/venv/bin/python -m app.send_reports
+# Повторы при недоступном Telegram — до 25 минут
+TimeoutStartSec=1h
+MemoryMax=200M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=@DATA_DIR@

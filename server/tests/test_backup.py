@@ -121,6 +121,22 @@ def test_переезд_архив_с_ключом(data, tmp_path):
     assert new_env.read_text() == env.read_text()
 
 
+def test_переезд_переносит_настройки_telegram(data, tmp_path):
+    etc = tmp_path / "etc"
+    etc.mkdir()
+    env = etc / "env"
+    env.write_text("FH_FAMILY_KEY=secret-secret-secret\nFH_TELEGRAM_TOKEN=1:abc\n")
+    (etc / "telegram.json").write_text('{"recipients": []}')
+    target = backup.make_backup(data, tmp_path / "backups", datetime(2026, 9, 29, 3, 30))
+    archive = backup.export_archive(target, env, tmp_path / "export.tar.gz")
+
+    new_etc = tmp_path / "new-server" / "etc"
+    new_etc.mkdir(parents=True)
+    backup.restore(archive, tmp_path / "new-server" / "data", env_out=new_etc / "env")
+    assert (new_etc / "env").read_text() == env.read_text()
+    assert (new_etc / "telegram.json").read_text() == '{"recipients": []}'
+
+
 def test_не_копия_отклоняется(tmp_path):
     (tmp_path / "junk").mkdir()
     with pytest.raises(FileNotFoundError):

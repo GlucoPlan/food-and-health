@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Восстановление данных сервера.
 #
-#   sudo bash server/deploy/restore.sh АРХИВ.tar.gz     — переезд: данные и ключ семьи
+#   sudo bash server/deploy/restore.sh АРХИВ.tar.gz     — переезд: данные, ключ семьи, настройки Telegram
 #   sudo bash server/deploy/restore.sh /var/backups/foodhealth/2026-09-29_033000   — откат на копию
 #
 # Перед восстановлением текущие данные сохраняются отдельной копией.
@@ -27,6 +27,11 @@ if [[ -f $SOURCE ]]; then
     run_backup_tool --data-dir "$DATA_DIR" restore "$SOURCE" --env-out "$ENV_FILE"
     chown root:"$USER_NAME" "$ENV_FILE"
     chmod 640 "$ENV_FILE"
+    # Настройки Telegram переезжают вместе с ключом семьи и токеном
+    if [[ -f $TELEGRAM_CONFIG ]]; then
+        chown root:"$USER_NAME" "$TELEGRAM_CONFIG"
+        chmod 640 "$TELEGRAM_CONFIG"
+    fi
 else
     run_backup_tool --data-dir "$DATA_DIR" restore "$SOURCE"
 fi

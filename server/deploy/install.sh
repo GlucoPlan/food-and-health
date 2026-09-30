@@ -63,10 +63,14 @@ sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" -e "s|@ENV_FILE@|$
 sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" -e "s|@BACKUPS_DIR@|$BACKUPS_DIR|g" \
     "$REPO_DIR/server/deploy/foodhealth-backup.service" > /etc/systemd/system/foodhealth-backup.service
 install -m 644 "$REPO_DIR/server/deploy/foodhealth-backup.timer" /etc/systemd/system/foodhealth-backup.timer
+sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" -e "s|@USER@|$USER_NAME|g" \
+    "$REPO_DIR/server/deploy/foodhealth-reports.service" > /etc/systemd/system/foodhealth-reports.service
+install -m 644 "$REPO_DIR/server/deploy/foodhealth-reports.timer" /etc/systemd/system/foodhealth-reports.timer
 systemctl daemon-reload
 systemctl enable "$SERVICE" >/dev/null
 systemctl restart "$SERVICE"
 systemctl enable --now foodhealth-backup.timer >/dev/null
+systemctl enable --now foodhealth-reports.timer >/dev/null
 wait_local_health
 echo "сервер отвечает на 127.0.0.1:$PORT"
 
@@ -112,3 +116,8 @@ else
     echo "Ключ семьи прежний: sudo cat $ENV_FILE"
 fi
 echo "Резервные копии: $BACKUPS_DIR, каждый день в 03:30"
+if [[ -f $TELEGRAM_CONFIG ]]; then
+    echo "Отчёты в Telegram: каждый день в 6:00 по Москве"
+else
+    echo "Отчёты в Telegram не настроены: sudo bash server/deploy/telegram-setup.sh"
+fi

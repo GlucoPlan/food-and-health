@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily reports to Telegram at 06:00 Moscow time
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 Europe/Moscow
+# Если сервер был выключен в 6:00 — отправить после включения
+Persistent=true
+
+[Install]
+WantedBy=timers.target
