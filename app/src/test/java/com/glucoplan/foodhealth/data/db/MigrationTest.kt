@@ -242,4 +242,31 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 6 — вес, курсор сброшен, рост на месте`() = runTest {
+        createDatabase(6) { db ->
+            db.execSQL(
+                "INSERT INTO height (id, profile_id, measured_at, height_cm, updated_at, deleted, device_id) " +
+                    "VALUES ('h', 'p1', 1, 131.5, 1, 0, 'dev')"
+            )
+            db.execSQL("INSERT OR REPLACE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 55, 1)")
+        }
+
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertThat(db.heightDao().getById("h")!!.heightCm).isEqualTo(131.5)
+            assertThat(db.syncDao().state()!!.cursor).isEqualTo(0)
+
+            db.weightDao().upsert(WeightEntity("w", "p1", 2L, 84.2, 2L, false, "dev"))
+            assertThat(db.weightDao().latest("p1")!!.weightKg).isEqualTo(84.2)
+            assertThat(db.syncDao().outbox().map { it.tbl to it.id }).contains("weight" to "w")
+        } finally {
+            db.close()
+        }
+    }
 }

@@ -44,6 +44,8 @@ import com.glucoplan.foodhealth.ui.history.HistoryScreen
 import com.glucoplan.foodhealth.ui.history.MealEditScreen
 import com.glucoplan.foodhealth.ui.history.MealEditViewModel
 import com.glucoplan.foodhealth.ui.meal.MealScreen
+import com.glucoplan.foodhealth.ui.measure.MeasuresScreen
+import com.glucoplan.foodhealth.ui.measure.MeasuresViewModel
 import com.glucoplan.foodhealth.ui.pans.PanEditScreen
 import com.glucoplan.foodhealth.ui.pans.PanEditViewModel
 import com.glucoplan.foodhealth.ui.pans.PansScreen
@@ -82,6 +84,12 @@ private const val PICKED_ITEM = "picked_item"
 private const val CREATED_PRODUCT_ID = "created_product_id"
 
 private const val PANS = "pans"
+
+/** Экран «Замеры» (ТЗ 15.4). */
+private const val MEASURES = "measures"
+
+/** Ключ: сообщение для экрана приёма пищи с другого экрана. */
+private const val NOTICE = "notice"
 private const val PAN_EDIT_BASE = "pans/edit"
 
 private const val SETTINGS_MAIN = "settings/main"
@@ -136,7 +144,15 @@ fun AppNavigation(settingsBadge: Boolean) {
         ) {
             composable(Tab.Meal.route) { entry ->
                 val results = entry.mealResults()
+                val notice by entry.savedStateHandle.getStateFlow<String?>(NOTICE, null).collectAsStateWithLifecycle()
                 MealScreen(
+                    onMeasure = { profileId ->
+                        navController.navigate(
+                            MEASURES + (profileId?.let { "?${MeasuresViewModel.ARG_PROFILE}=$it" } ?: "")
+                        )
+                    },
+                    notice = notice,
+                    onNoticeHandled = { entry.savedStateHandle[NOTICE] = null },
                     onAdd = { profileId -> navController.navigate(mealPickerRoute(profileId)) },
                     onScan = { navController.navigate(SCANNER) },
                     onCreateProduct = { code ->
@@ -274,6 +290,19 @@ fun AppNavigation(settingsBadge: Boolean) {
                     onScannedHandled = { entry.savedStateHandle[SCANNED_BARCODE] = null },
                     createdProductId = created,
                     onCreatedHandled = { entry.savedStateHandle[CREATED_PRODUCT_ID] = null },
+                )
+            }
+            composable(
+                route = "$MEASURES?${MeasuresViewModel.ARG_PROFILE}={${MeasuresViewModel.ARG_PROFILE}}",
+                arguments = listOf(optionalIdArgument(MeasuresViewModel.ARG_PROFILE)),
+            ) {
+                MeasuresScreen(
+                    onBack = { navController.popBackStack() },
+                    onRecorded = { message ->
+                        // ТЗ 15.4: после записи — сразу к еде, сообщение показывает экран приёма пищи
+                        navController.previousBackStackEntry?.savedStateHandle?.set(NOTICE, message)
+                        navController.popBackStack()
+                    },
                 )
             }
             composable(PANS) {

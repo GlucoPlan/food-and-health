@@ -43,6 +43,9 @@ class MealViewModel @Inject constructor(
         }
     }
 
+    /** Сообщение с другого экрана (например, «Записано: 84,2 кг» после замера). */
+    fun showNotice(text: String) = showMessage(text)
+
     /** «Записать»: сохранить и очистить; «кому» и время возвращаются к владельцу и «сейчас». */
     fun record() {
         val d = store.draft.value ?: return

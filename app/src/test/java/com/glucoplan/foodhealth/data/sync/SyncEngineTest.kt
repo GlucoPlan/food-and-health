@@ -257,4 +257,25 @@ class SyncEngineTest {
         assertThat(bHeights.observeHistory(id).first().single().heightCm).isEqualTo(131.5)
         assertThat(server.records.keys.map { it.first }).contains("height")
     }
+
+    @Test
+    fun `вес доходит до другого телефона, исправление и удаление тоже`() = runTest {
+        val a = phone("a")
+        val b = phone("b")
+        val aw = com.glucoplan.foodhealth.data.measure.WeightRepository(a.db.weightDao(), a.prefs)
+        val bw = com.glucoplan.foodhealth.data.measure.WeightRepository(b.db.weightDao(), b.prefs)
+
+        aw.save(null, "me", "84,2", null)
+        a.engine.sync(); b.engine.sync()
+        val w = bw.latest("me")!!
+        assertThat(w.kg).isEqualTo(84.2)
+
+        bw.save(w.id, "me", "83,9", w.measuredAt)
+        b.engine.sync(); a.engine.sync()
+        assertThat(aw.latest("me")!!.kg).isEqualTo(83.9)
+
+        aw.delete(w.id)
+        a.engine.sync(); b.engine.sync()
+        assertThat(bw.latest("me")).isNull()
+    }
 }

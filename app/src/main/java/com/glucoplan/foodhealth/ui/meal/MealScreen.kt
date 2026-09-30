@@ -41,12 +41,19 @@ fun MealScreen(
     scannedBarcode: String?,
     createdProductId: String?,
     onResultsHandled: () -> Unit,
+    onMeasure: (profileId: String?) -> Unit = {},
+    notice: String? = null,
+    onNoticeHandled: () -> Unit = {},
     viewModel: MealViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
 
     MealEditorEffects(viewModel, picked, scannedBarcode, createdProductId, onResultsHandled, onCreateProduct)
+    LaunchedEffect(notice) {
+        // В очередь сообщений, а не прямо в snackbar: сброс ключа отменил бы показ
+        notice?.let { viewModel.showNotice(it); onNoticeHandled() }
+    }
     // Ключ Unit: эффект не перезапускается, начатый показ сообщения ничто не отменяет
     LaunchedEffect(Unit) {
         viewModel.messages.collect { snackbar.showSnackbar(it) }
@@ -66,7 +73,7 @@ fun MealScreen(
         contentWindowInsets = WindowInsets(0),
     ) { padding ->
         if (!state.loaded) return@Scaffold
-        MealEditor(viewModel, state, onAdd, onScan, allowNow = true, modifier = Modifier.padding(padding))
+        MealEditor(viewModel, state, onAdd, onScan, allowNow = true, modifier = Modifier.padding(padding), onMeasure = onMeasure)
     }
 }
 

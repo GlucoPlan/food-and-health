@@ -8,6 +8,7 @@ import com.glucoplan.foodhealth.data.db.DatabaseGuard
 import com.glucoplan.foodhealth.data.db.DishDao
 import com.glucoplan.foodhealth.data.db.HeightDao
 import com.glucoplan.foodhealth.data.db.MealDao
+import com.glucoplan.foodhealth.data.db.WeightDao
 import com.glucoplan.foodhealth.data.db.SyncDao
 import com.glucoplan.foodhealth.data.db.SyncTriggers
 import com.glucoplan.foodhealth.data.db.PanDao
@@ -56,4 +57,7 @@ object DatabaseModule {
 
     @Provides
     fun provideHeightDao(db: AppDatabase): HeightDao = db.heightDao()
+
+    @Provides
+    fun provideWeightDao(db: AppDatabase): WeightDao = db.weightDao()
 }

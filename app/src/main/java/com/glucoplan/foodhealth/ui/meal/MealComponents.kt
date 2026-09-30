@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -91,6 +92,8 @@ fun MealEditor(
     onScan: () -> Unit,
     allowNow: Boolean,
     modifier: Modifier = Modifier,
+    /** «+ Замер» (ТЗ 15.4); null — кнопки нет (например, в открытом приёме из истории). */
+    onMeasure: ((profileId: String?) -> Unit)? = null,
 ) {
     var choosingTime by remember { mutableStateOf(false) }
 
@@ -120,6 +123,10 @@ fun MealEditor(
             )
             if (allowNow && state.eatenAt != null) {
                 TextButton(onClick = { viewModel.onTimeSelected(null) }) { Text("Сейчас") }
+            }
+            if (onMeasure != null) {
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { onMeasure(state.profileId) }) { Text("+ Замер") }
             }
         }
         state.errors[MealField.TIME]?.let { ErrorText(it, Modifier.padding(horizontal = 16.dp)) }

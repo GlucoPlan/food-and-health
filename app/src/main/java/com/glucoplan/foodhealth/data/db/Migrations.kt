@@ -208,5 +208,29 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+/** 6 → 7: вес. Курсор сбрасывается по той же причине, что в 5 → 6. */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `weight` (
+                `id` TEXT NOT NULL,
+                `profile_id` TEXT NOT NULL,
+                `measured_at` INTEGER NOT NULL,
+                `weight_kg` REAL NOT NULL,
+                `updated_at` INTEGER NOT NULL,
+                `deleted` INTEGER NOT NULL,
+                `device_id` TEXT NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_weight_profile_id_measured_at` ON `weight` (`profile_id`, `measured_at`)"
+        )
+        db.execSQL("UPDATE sync_state SET cursor = 0 WHERE id = 1")
+    }
+}
+
 /** Все миграции по порядку; каждая покрыта MigrationTest. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
