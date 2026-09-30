@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,9 +31,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.glucoplan.foodhealth.data.NumberText
 import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
 import com.glucoplan.foodhealth.data.measure.PressureRecord
+import com.glucoplan.foodhealth.data.measure.SleepRecord
+import com.glucoplan.foodhealth.data.measure.SleepTime
 import com.glucoplan.foodhealth.data.measure.WeightRecord
 import com.glucoplan.foodhealth.data.measure.WeightRepository
 import com.glucoplan.foodhealth.ui.format.mealTime
+import com.glucoplan.foodhealth.ui.format.shortDate
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** Экран «Замеры» (ТЗ 15.4). Новый замер записан — [onRecorded] с текстом сообщения. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,6 +51,7 @@ fun MeasuresScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val dialog by viewModel.dialog.collectAsStateWithLifecycle()
+    val sleepDialog by viewModel.sleepDialog.collectAsStateWithLifecycle()
     val recorded by viewModel.recorded.collectAsStateWithLifecycle()
 
     LaunchedEffect(recorded) {
@@ -104,6 +112,24 @@ fun MeasuresScreen(
                 onNew = { viewModel.newMeasure(MeasureKind.PRESSURE) },
                 onEdit = { viewModel.edit(MeasureKind.PRESSURE, it) },
             )
+            MeasureCard(
+                title = "Сон",
+                icon = Icons.Filled.Bedtime,
+                entries = state.sleeps.map { MeasureEntry(it.id, sleepLine(it)) },
+                onNew = viewModel::newSleep,
+                onEdit = viewModel::editSleep,
+            )
+        }
+    }
+
+    sleepDialog?.let { d ->
+        key(d.editingId, d.errors) {
+            SleepDialog(
+                state = d,
+                onSave = viewModel::saveSleep,
+                onDelete = viewModel::deleteSleep,
+                onDismiss = viewModel::dismissSleep,
+            )
         }
     }
 
@@ -153,3 +179,14 @@ fun MeasuresScreen(
 private fun weightLine(w: WeightRecord) = "${NumberText.format(w.kg, 1)} кг · ${mealTime(w.measuredAt)}"
 
 private fun pressureLine(p: PressureRecord) = "${p.text} · ${mealTime(p.measuredAt)}"
+
+private val HM = DateTimeFormatter.ofPattern("HH:mm")
+
+/** «23:40 → 07:15, 7 ч 35 мин · хорошо · 30 сент.» */
+private fun sleepLine(s: SleepRecord): String {
+    val zone = ZoneId.systemDefault()
+    val asleep = HM.format(Instant.ofEpochMilli(s.asleepAt).atZone(zone))
+    val woke = HM.format(Instant.ofEpochMilli(s.wokeAt).atZone(zone))
+    return "$asleep → $woke, ${SleepTime.durationText(s.minutes)}" +
+        (s.quality?.let { " · ${it.label.lowercase()}" } ?: "") + " · ${shortDate(s.wokeAt)}"
+}

@@ -292,4 +292,18 @@ class SyncEngineTest {
         assertThat(got.text).isEqualTo("118/76")
         assertThat(got.pulse).isNull()
     }
+
+    @Test
+    fun `сон доходит до другого телефона`() = runTest {
+        val a = phone("a")
+        val b = phone("b")
+        val asl = com.glucoplan.foodhealth.data.measure.SleepRepository(a.db.sleepDao(), a.prefs)
+        val bsl = com.glucoplan.foodhealth.data.measure.SleepRepository(b.db.sleepDao(), b.prefs)
+        val woke = System.currentTimeMillis() - 60_000
+        asl.save(null, "daughter", woke - 600 * 60_000L, woke, com.glucoplan.foodhealth.data.measure.SleepQuality.NORMAL)
+        a.engine.sync(); b.engine.sync()
+        val got = bsl.observeRecent("daughter").first().single()
+        assertThat(got.minutes).isEqualTo(600L)
+        assertThat(got.quality).isEqualTo(com.glucoplan.foodhealth.data.measure.SleepQuality.NORMAL)
+    }
 }

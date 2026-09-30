@@ -259,7 +259,33 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+/** 8 → 9: сон. Курсор сбрасывается по той же причине, что в 5 → 6. */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `sleep` (
+                `id` TEXT NOT NULL,
+                `profile_id` TEXT NOT NULL,
+                `asleep_at` INTEGER NOT NULL,
+                `woke_at` INTEGER NOT NULL,
+                `quality` TEXT,
+                `source` TEXT NOT NULL,
+                `external_id` TEXT,
+                `updated_at` INTEGER NOT NULL,
+                `deleted` INTEGER NOT NULL,
+                `device_id` TEXT NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_sleep_profile_id_woke_at` ON `sleep` (`profile_id`, `woke_at`)")
+        db.execSQL("UPDATE sync_state SET cursor = 0 WHERE id = 1")
+    }
+}
+
 /** Все миграции по порядку; каждая покрыта MigrationTest. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+    MIGRATION_8_9,
 )

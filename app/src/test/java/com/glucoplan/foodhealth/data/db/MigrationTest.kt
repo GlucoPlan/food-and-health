@@ -296,4 +296,31 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun `с версии 8 — сон, курсор сброшен, давление на месте`() = runTest {
+        createDatabase(8) { db ->
+            db.execSQL(
+                "INSERT INTO blood_pressure (id, profile_id, measured_at, systolic, diastolic, pulse, updated_at, deleted, device_id) " +
+                    "VALUES ('bp', 'p1', 1, 120, 80, 72, 1, 0, 'dev')"
+            )
+            db.execSQL("INSERT OR REPLACE INTO sync_state (id, applying, cursor, initialized) VALUES (1, 0, 70, 1)")
+        }
+
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*ALL_MIGRATIONS)
+            .addCallback(SyncTriggers.callback)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertThat(db.bloodPressureDao().getById("bp")!!.pulse).isEqualTo(72)
+            assertThat(db.syncDao().state()!!.cursor).isEqualTo(0)
+
+            db.sleepDao().upsert(SleepEntity("s", "p1", 1L, 2L, "good", "manual", null, 2L, false, "dev"))
+            assertThat(db.sleepDao().getById("s")!!.quality).isEqualTo("good")
+            assertThat(db.syncDao().outbox().map { it.tbl to it.id }).contains("sleep" to "s")
+        } finally {
+            db.close()
+        }
+    }
 }

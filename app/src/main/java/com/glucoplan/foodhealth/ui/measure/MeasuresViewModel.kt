@@ -7,6 +7,10 @@ import com.glucoplan.foodhealth.data.NumberText
 import com.glucoplan.foodhealth.data.measure.BloodPressureRepository
 import com.glucoplan.foodhealth.data.measure.MeasureSave
 import com.glucoplan.foodhealth.data.measure.PressureRecord
+import com.glucoplan.foodhealth.data.measure.SleepQuality
+import com.glucoplan.foodhealth.data.measure.SleepRecord
+import com.glucoplan.foodhealth.data.measure.SleepRepository
+import com.glucoplan.foodhealth.data.measure.SleepTime
 import com.glucoplan.foodhealth.data.measure.WeightRecord
 import com.glucoplan.foodhealth.data.measure.WeightRepository
 import com.glucoplan.foodhealth.data.prefs.DevicePrefs
@@ -23,6 +27,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
 
 data class MeasuresUi(
@@ -32,6 +41,7 @@ data class MeasuresUi(
     /** Последние записи выбранного человека, новые сверху. */
     val weights: List<WeightRecord> = emptyList(),
     val pressures: List<PressureRecord> = emptyList(),
+    val sleeps: List<SleepRecord> = emptyList(),
 )
 
 enum class MeasureKind { WEIGHT, PRESSURE }
@@ -54,6 +64,7 @@ class MeasuresViewModel @Inject constructor(
     devicePrefs: DevicePrefs,
     private val weights: WeightRepository,
     private val pressures: BloodPressureRepository,
+    private val sleeps: SleepRepository,
 ) : ViewModel() {
 
     /** null — тот, кто выбран на экране приёма пищи (аргумент), иначе владелец. */
@@ -65,9 +76,11 @@ class MeasuresViewModel @Inject constructor(
 
     val state: StateFlow<MeasuresUi> = profileState.flatMapLatest { (list, profileId) ->
         if (profileId == null) return@flatMapLatest flowOf(MeasuresUi(true, list, null))
-        combine(weights.observeRecent(profileId), pressures.observeRecent(profileId)) { w, p ->
-            MeasuresUi(true, list, profileId, w, p)
-        }
+        combine(
+            weights.observeRecent(profileId),
+            pressures.observeRecent(profileId),
+            sleeps.observeRecent(profileId),
+        ) { w, p, sl -> MeasuresUi(true, list, profileId, w, p, sl) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MeasuresUi())
 
     private val _dialog = MutableStateFlow<MeasureDialogState?>(null)
@@ -140,6 +153,61 @@ class MeasuresViewModel @Inject constructor(
                 MeasureKind.PRESSURE -> pressures.delete(id)
             }
             _dialog.value = null
+        }
+    }
+
+    private val _sleepDialog = MutableStateFlow<SleepDialogState?>(null)
+    val sleepDialog: StateFlow<SleepDialogState?> = _sleepDialog.asStateFlow()
+
+    /** Новый сон: проснулся «сейчас», заснул — как в прошлый раз или в 23:00. */
+    fun newSleep() {
+        val now = LocalDateTime.now()
+        _sleepDialog.value = SleepDialogState(
+            wakeDate = now.toLocalDate(),
+            wakeTime = now.toLocalTime().withSecond(0).withNano(0),
+            asleepTime = SleepTime.defaultAsleep(state.value.sleeps.firstOrNull()?.asleepAt),
+        )
+    }
+
+    fun editSleep(id: String) {
+        val r = state.value.sleeps.firstOrNull { it.id == id } ?: return
+        val zone = ZoneId.systemDefault()
+        val woke = Instant.ofEpochMilli(r.wokeAt).atZone(zone)
+        _sleepDialog.value = SleepDialogState(
+            editingId = id,
+            wakeDate = woke.toLocalDate(),
+            wakeTime = woke.toLocalTime().withSecond(0).withNano(0),
+            asleepTime = Instant.ofEpochMilli(r.asleepAt).atZone(zone).toLocalTime().withSecond(0).withNano(0),
+            quality = r.quality,
+        )
+    }
+
+    fun dismissSleep() {
+        _sleepDialog.value = null
+    }
+
+    fun saveSleep(wakeDate: LocalDate, wakeTime: LocalTime, asleepTime: LocalTime, quality: SleepQuality?) {
+        val dialog = _sleepDialog.value ?: return
+        val profileId = state.value.profileId ?: return
+        val (asleepAt, wokeAt) = SleepTime.moments(wakeDate, wakeTime, asleepTime)
+        viewModelScope.launch {
+            when (val r = sleeps.save(dialog.editingId, profileId, asleepAt, wokeAt, quality)) {
+                is MeasureSave.Saved -> {
+                    _sleepDialog.value = null
+                    if (dialog.editingId == null) _recorded.value = r.message
+                }
+                is MeasureSave.Invalid -> _sleepDialog.value = dialog.copy(
+                    wakeDate = wakeDate, wakeTime = wakeTime, asleepTime = asleepTime, quality = quality, errors = r.errors,
+                )
+            }
+        }
+    }
+
+    fun deleteSleep() {
+        val id = _sleepDialog.value?.editingId ?: return
+        viewModelScope.launch {
+            sleeps.delete(id)
+            _sleepDialog.value = null
         }
     }
 
