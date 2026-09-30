@@ -151,9 +151,12 @@ def test_повторный_запуск_не_шлёт_дубли(store, tmp_pat
     send_daily(store, FAMILY, tg.bot(), DAY, sent, log=lambda _: None)
     send_daily(store, FAMILY, tg.bot(), DAY, sent, log=lambda _: None)
     assert len(tg.sent) == 4
+    # --force — отправить заново
+    send_daily(store, FAMILY, tg.bot(), DAY, sent, log=lambda _: None, force=True)
+    assert len(tg.sent) == 8
     # Другой день — снова отправляется
     send_daily(store, FAMILY, tg.bot(), date(2026, 9, 30), sent, log=lambda _: None)
-    assert len(tg.sent) == 8
+    assert len(tg.sent) == 12
 
 
 def test_сбой_telegram_повтор_через_паузу(store, tmp_path):

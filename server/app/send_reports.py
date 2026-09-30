@@ -1,6 +1,6 @@
 """Утренняя рассылка отчётов в Telegram (ТЗ 17.5, 17.7). Запускается таймером в 6:00 по Москве.
 
-    python -m app.send_reports [--date ГГГГ-ММ-ДД]
+    python -m app.send_reports [--date ГГГГ-ММ-ДД] [--force]
 
 Отправленное запоминается в telegram-sent.json в папке данных: повторный запуск не шлёт дубли.
 Если Telegram недоступен — ещё две попытки, через 5 и 20 минут.
@@ -58,10 +58,15 @@ def send_daily(
     sleep: Callable[[float], None] = time.sleep,
     log: Callable[[str], None] = print,
     delays: tuple[float, ...] = RETRY_DELAYS,
+    force: bool = False,
 ) -> int:
-    """Отправить отчёты за [day]. Возвращает число неотправленных."""
+    """Отправить отчёты за [day]. [force] — и уже отправленные. Возвращает число неотправленных."""
     sent = _load_sent(sent_path)
-    pending = [(r, pid) for r in recipients for pid in r.profiles if _key(day, r.chat_id, pid) not in sent]
+    pending = [
+        (r, pid) for r in recipients for pid in r.profiles if force or _key(day, r.chat_id, pid) not in sent
+    ]
+    if not pending:
+        log(f"Отчёты за {day.isoformat()} уже отправлены; отправить заново: --force")
     failed_for_good = 0
 
     for attempt in range(len(delays) + 1):
@@ -99,6 +104,7 @@ def send_daily(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.send_reports")
     parser.add_argument("--date", type=date.fromisoformat, help="день отчёта; по умолчанию вчера по Москве")
+    parser.add_argument("--force", action="store_true", help="отправить и уже отправленные отчёты")
     parser.add_argument("--config", type=Path,
                         default=Path(os.environ.get("FH_TELEGRAM_CONFIG", "/etc/foodhealth/telegram.json")))
     args = parser.parse_args(argv)
@@ -110,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     data_dir = Path(os.environ.get("FH_DATA_DIR", "data")).resolve()
     failed = send_daily(Store(data_dir / "fh.db"), recipients, Bot(token), args.date or yesterday(),
-                        data_dir / SENT_FILE)
+                        data_dir / SENT_FILE, force=args.force)
     return 1 if failed else 0
 
 
