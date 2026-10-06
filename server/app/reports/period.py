@@ -17,7 +17,7 @@ from .text import MONTHS, MONTHS_NOMINATIVE, SHORT_WEEKDAYS, B, duration, fmt, l
 QUALITY_SCORE = {"bad": 1, "normal": 2, "good": 3}
 SCORE_LABEL = {1: "плохо", 2: "нормально", 3: "хорошо"}
 MIN_PACE_DAYS = 3  # темп веса считается, если между первым и последним взвешиванием хотя бы 3 дня
-TOP_PRODUCTS = {"week": 10, "month": 15}
+TOP_PRODUCTS = {"week": 10, "month": 15, "days": 15}
 TOP_KCAL = 5
 
 
@@ -186,11 +186,12 @@ def _vs(current: float | None, previous: float | None, unit: str, digits: int = 
 def build(family: Family, profile: dict, first: date, last: date, settings: ReportSettings,
           kind: str = "week") -> dict:
     span = (last - first).days + 1
-    prev_first = first - timedelta(days=span) if kind == "week" else _prev_month(first)
+    # days — произвольные N дней (выгрузка для Claude): сравнение с предыдущими N днями
+    prev_first = _prev_month(first) if kind == "month" else first - timedelta(days=span)
     prev_last = first - timedelta(days=1)
     st = collect(family, profile, first, last, settings)
     prev = collect(family, profile, prev_first, prev_last, settings)
-    word = "к прошлой неделе" if kind == "week" else "к прошлому месяцу"
+    word = {"week": "к прошлой неделе", "month": "к прошлому месяцу"}.get(kind, f"к предыдущим {span} дням")
     sd1 = bool(num(profile.get("sd1_enabled")))
 
     report = {

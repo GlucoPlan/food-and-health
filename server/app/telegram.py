@@ -143,7 +143,7 @@ def load_recipients(path: Path) -> list[Recipient]:
 
 
 def load_backup_chat(path: Path) -> int | None:
-    """Кому каждую ночь идёт копия базы (ТЗ 17.8); None — никому."""
+    """Кому идут копия базы (ТЗ 17.8) и сообщения о сбоях анализа (17.9) — Ивану; None — никому."""
     chat = _load(path).get("backup_chat_id")
     return int(chat) if chat is not None else None
 

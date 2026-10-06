@@ -1,0 +1,19 @@
+# Шаблон: install.sh подставляет пути. Claude Code от имени @ANALYSIS_USER@ (там его вход по подписке),
+# по очереди на каждого (ТЗ 17.9). Пользователь входит в группу @USER@ — так он видит папку analysis/.
+[Unit]
+Description=Food and health nightly Claude analysis
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@ANALYSIS_USER@
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/venv/bin/python -m app.analysis --data-dir @DATA_DIR@ run --claude @CLAUDE_BIN@
+# Ответы — с правами группы, чтобы их прочитал сервер
+UMask=0007
+# Три запуска по 15 минут максимум
+TimeoutStartSec=1h
+# Claude Code занимает около 250 МБ; не даём ему вытеснить сервер
+MemoryMax=600M
+Nice=10

@@ -30,8 +30,13 @@ data class ReportSection(val title: String, val lines: List<ReportLine>)
 /** График (ТЗ 17.6): PNG, пришедший в ответе сервера. */
 class ReportImage(val id: String, val title: String, val png: ByteArray)
 
-/** Вид отчёта; [code] — путь на сервере /reports/{code}. */
-enum class ReportKind(val code: String, val label: String) { DAY("day", "День"), WEEK("week", "Неделя"), MONTH("month", "Месяц") }
+/** Вид отчёта; [code] — путь на сервере /reports/{code}. Анализ — последний ночной анализ Claude (ТЗ 17.9). */
+enum class ReportKind(val code: String, val label: String) {
+    DAY("day", "День"), WEEK("week", "Неделя"), MONTH("month", "Месяц"), ANALYSIS("analysis", "Анализ");
+
+    /** Анализ не листается и не формируется по кнопке: он один, последний. */
+    val hasPeriod: Boolean get() = this != ANALYSIS
+}
 
 /**
  * Отчёт, собранный сервером (ТЗ 17.5, 17.6): выжимка, подробности, графики.

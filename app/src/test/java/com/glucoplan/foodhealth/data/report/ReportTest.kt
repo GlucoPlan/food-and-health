@@ -168,4 +168,35 @@ class ReportTest {
         assertThat(image.title).isEqualTo("Вес")
         assertThat(image.png.toList()).isEqualTo(png.toList())
     }
+
+    @Test
+    fun `анализ не листается и не формируется по кнопке`() {
+        val today = LocalDate.of(2026, 9, 30)
+        assertThat(ReportKind.ANALYSIS.hasPeriod).isFalse()
+        assertThat(ReportKind.entries.filter { it.hasPeriod }).containsExactly(ReportKind.DAY, ReportKind.WEEK, ReportKind.MONTH)
+        assertThat(ReportKind.ANALYSIS.code).isEqualTo("analysis")
+        assertThat(ReportDates.canGoForward(ReportKind.ANALYSIS, today, today)).isFalse()
+        assertThat(ReportDates.step(ReportKind.ANALYSIS, today, forward = false)).isEqualTo(today)
+    }
+
+    @Test
+    fun `анализ с сервера разбирается как отчёт, в том числе пустой`() {
+        val analysis = ReportJson.parse(
+            """{"kind": "analysis", "date": "2026-09-29", "profile_id": "p", "title": "по данным за 29 сентября, вторник",
+               "incomplete": false, "empty": false, "images": [],
+               "summary": [{"spans": [{"text": "Белка мало, ", "bold": false}, {"text": "соли много", "bold": true}], "style": "normal"}],
+               "sections": [{"title": "Что сделать", "lines": [{"spans": [{"text": "• Творог утром", "bold": false}], "style": "normal"}]}]}"""
+        )
+        assertThat(analysis.kind).isEqualTo("analysis")
+        assertThat(analysis.summary.single().spans.last()).isEqualTo(ReportSpan("соли много", bold = true))
+        assertThat(analysis.sections.single().lines.single().text).isEqualTo("• Творог утром")
+
+        val empty = ReportJson.parse(
+            """{"kind": "analysis", "date": "", "profile_id": "p", "title": "Анализа пока нет", "incomplete": false,
+               "empty": true, "images": [], "sections": [],
+               "summary": [{"spans": [{"text": "Claude разбирает данные ночью", "bold": false}], "style": "muted"}]}"""
+        )
+        assertThat(empty.empty).isTrue()
+        assertThat(empty.summary.single().style).isEqualTo(LineStyle.MUTED)
+    }
 }

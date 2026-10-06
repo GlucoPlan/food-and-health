@@ -98,6 +98,19 @@ sudo bash server/deploy/restore.sh /var/backups/foodhealth/2026-09-29_033000   #
 Токен лежит в `/etc/foodhealth/env`, получатели — в `/etc/foodhealth/telegram.json`
 (`{"recipients": [{"chat_id", "name", "profiles": [id профилей]}]}`), его можно править руками.
 
+### Анализ Claude (ТЗ 17.9)
+
+В 4:00 (`foodhealth-analysis.timer`) `foodhealth-analysis-export.service` от имени сервиса пишет задания
+`analysis/in/<профиль>.json` (промт и данные: профиль, нормы, вчера подробно, 7 и 30 дней), затем
+`foodhealth-analysis.service` от имени `ivan` по очереди запускает `claude -p` без инструментов, MCP и
+настроек. Ответ — `analysis/out/<профиль>.json` (последний удачный), итог запуска — `<профиль>.status.json`.
+В 6:00 анализ уходит в Telegram за отчётами профиля, сбой — короткое сообщение тому, кто получает копии.
+Приложение берёт его с `GET /reports/analysis?profile_id=…`.
+
+Промты — `analysis/prompts/` в папке данных: `common.md` + `<имя профиля>.md`, иначе `sd1.md` или `adult.md`.
+Образцы — `server/deploy/prompts/`, `install.sh` кладёт только недостающие. Запустить сейчас:
+`sudo bash server/deploy/analysis-now.sh`. Claude Code занимает около 250 МБ, ответ — 20–60 секунд.
+
 ### Настройки отчётов
 
 `/etc/foodhealth/reports.json` — время приёмов пищи для раздела «Углеводы по времени приёма» (профиль с СД1).

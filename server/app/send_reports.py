@@ -2,7 +2,8 @@
 
     python -m app.send_reports [--date ГГГГ-ММ-ДД] [--week | --month] [--force]
 
-Без параметров — итоги вчерашнего дня, по понедельникам ещё и прошлой недели, 1-го числа — прошлого месяца.
+Без параметров — итоги вчерашнего дня, по понедельникам ещё и прошлой недели, 1-го числа — прошлого месяца,
+затем ночной анализ Claude (17.9), если он включён и готов; не получился — Ивану короткое сообщение.
 --date — за другой день; --week / --month — только недельный / месячный (за период с --date,
 иначе за прошлый полный).
 Отправленное запоминается в telegram-sent.json в папке данных: повторный запуск не шлёт дубли,
@@ -11,6 +12,7 @@
 
 import argparse
 import base64
+from html import escape
 import json
 import os
 import sys
@@ -20,13 +22,13 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from . import report_settings
+from . import analysis, report_settings
 from .daydata import MSK, TABLES, Family
 from .db import Store
 from .report_settings import ReportSettings
 from .reports import daily, period
 from .reports.telegram_html import render
-from .telegram import Bot, Recipient, TelegramError, load_recipients
+from .telegram import Bot, Recipient, TelegramError, load_backup_chat, load_recipients
 
 RETRY_DELAYS = (5 * 60, 20 * 60)
 KEEP_SENT_DAYS = 60
@@ -62,7 +64,8 @@ def today() -> date:
     return datetime.now(MSK).date()
 
 
-def default_jobs(day: date | None, week_only: bool = False, month_only: bool = False) -> list[Job]:
+def default_jobs(day: date | None, week_only: bool = False, month_only: bool = False,
+                 with_analysis: bool = False) -> list[Job]:
     if week_only:
         return [week_job(day or today() - timedelta(days=7))]
     if month_only:
@@ -73,6 +76,8 @@ def default_jobs(day: date | None, week_only: bool = False, month_only: bool = F
         jobs.append(week_job(day))
     if (day + timedelta(days=1)).day == 1:  # последний день месяца
         jobs.append(month_job(day))
+    if with_analysis:
+        jobs.append(Job("analysis", day, day))
     return jobs
 
 
@@ -91,7 +96,9 @@ def _save_sent(path: Path, sent: set[str], now: date) -> None:
     tmp.replace(path)
 
 
-def _build(job: Job, family: Family, profile: dict, settings: ReportSettings) -> dict:
+def _build(job: Job, family: Family, profile: dict, settings: ReportSettings, analysis_dir: Path | None) -> dict | None:
+    if job.kind == "analysis":
+        return analysis.report_for(analysis_dir, profile["id"], job.first) if analysis_dir else None
     if job.kind == "day":
         return daily.build(family, profile, job.first)
     return period.build(family, profile, job.first, job.last, settings, kind=job.kind)
@@ -108,6 +115,7 @@ def send(
     log: Callable[[str], None] = print,
     delays: tuple[float, ...] = RETRY_DELAYS,
     force: bool = False,
+    analysis_dir: Path | None = None,
 ) -> int:
     """Отправить отчёты. На каждого человека и профиль — по порядку [jobs]. Возвращает число неотправленных."""
     sent = _load_sent(sent_path)
@@ -131,7 +139,11 @@ def send(
                 continue
             what = f"{job.kind} «{profile.get('name')}» за {job.first.isoformat()}"
             try:
-                report = _build(job, family, profile, settings)
+                report = _build(job, family, profile, settings, analysis_dir)
+                if report is None:
+                    # Анализа за этот день нет — о сбое Ивану сообщает notify_analysis_failures
+                    log(f"{recipient.name}: {what} — анализа нет, пропускаю")
+                    continue
                 for message in render(report, profile.get("name", "")):
                     bot.send(recipient.chat_id, message)
                 images = [(i["title"], base64.b64decode(i["png"])) for i in report.get("images", [])]
@@ -156,6 +168,29 @@ def send(
     return len(pending) + failed_for_good
 
 
+def notify_analysis_failures(store: Store, bot: Bot, chat_id: int | None, analysis_dir: Path, day: date,
+                             sent_path: Path, log: Callable[[str], None] = print) -> None:
+    """Анализ не получился (лимит, истёк вход, нет сети) — короткое сообщение Ивану, один раз (ТЗ 17.9)."""
+    if chat_id is None:
+        return
+    failed = analysis.failures(analysis_dir, Family(store.records(["profile"])).profiles, day)
+    key = f"{day.isoformat()}|analysis-failed"
+    sent = _load_sent(sent_path)
+    if not failed or key in sent:
+        return
+    text = ("Анализ Claude за " + day.strftime("%d.%m") + " не получился, отчёты ушли без него:\n"
+            + "\n".join(f"• {escape(f)}" for f in failed)
+            + "\nЖурнал: <code>journalctl -u foodhealth-analysis -n 50</code>")
+    try:
+        bot.send(chat_id, text)
+    except TelegramError as e:
+        log(f"Сообщение о сбое анализа не ушло: {e}")
+        return
+    sent.add(key)
+    _save_sent(sent_path, sent, today())
+    log(f"Сбой анализа: {len(failed)}, Ивану сообщено")
+
+
 def send_daily(store: Store, recipients: list[Recipient], bot: Bot, day: date, sent_path: Path, **kwargs) -> int:
     return send(store, recipients, bot, [day_job(day)], sent_path, **kwargs)
 
@@ -178,8 +213,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     data_dir = Path(os.environ.get("FH_DATA_DIR", "data")).resolve()
     settings = report_settings.load(Path(os.environ.get("FH_REPORTS_CONFIG", "/etc/foodhealth/reports.json")))
-    failed = send(Store(data_dir / "fh.db"), recipients, Bot(token), default_jobs(args.date, args.week, args.month),
-                  data_dir / SENT_FILE, settings=settings, force=args.force)
+    adir = analysis.analysis_dir(data_dir)
+    with_analysis = analysis.enabled(adir) and not (args.week or args.month)
+    jobs = default_jobs(args.date, args.week, args.month, with_analysis=with_analysis)
+    store, bot = Store(data_dir / "fh.db"), Bot(token)
+    failed = send(store, recipients, bot, jobs, data_dir / SENT_FILE, settings=settings, force=args.force,
+                  analysis_dir=adir if with_analysis else None)
+    if with_analysis:
+        notify_analysis_failures(store, bot, load_backup_chat(args.config), adir, jobs[0].first, data_dir / SENT_FILE)
     return 1 if failed else 0
 
 

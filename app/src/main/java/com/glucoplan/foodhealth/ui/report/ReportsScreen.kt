@@ -57,7 +57,7 @@ private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguag
 // LLLL — название месяца в именительном падеже: «сентябрь»
 private val MONTH = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.forLanguageTag("ru"))
 
-/** Отчёты и анализ (ТЗ 17.10): отчёты владельца телефона — итоги дня, недели и месяца. */
+/** Отчёты и анализ (ТЗ 17.10): отчёты владельца телефона — итоги дня, недели и месяца, ночной анализ Claude. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewModel()) {
@@ -94,34 +94,50 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
                     )
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = viewModel::previous) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад")
-                }
-                Text(
-                    when (state.kind) {
-                        ReportKind.DAY -> dayTitle(state.date)
-                        ReportKind.WEEK -> weekTitle(state.date)
-                        ReportKind.MONTH -> monthTitle(state.date)
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = viewModel::next, enabled = state.canGoForward) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Вперёд")
-                }
-            }
-            Button(onClick = viewModel::refresh, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
-                if (state.loading) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Text("Сформировать сейчас")
+            if (state.kind.hasPeriod) {
+                PeriodControls(state, viewModel)
+            } else {
+                // Кнопки «Проанализировать сейчас» нет (ТЗ 17.9)
+                Muted("Claude разбирает данные каждую ночь: вчерашний день, неделю и месяц. Здесь — последний анализ.")
+                state.report?.takeIf { !it.empty }?.let {
+                    Text(it.title.replaceFirstChar(Char::uppercase), style = MaterialTheme.typography.titleMedium)
                 }
             }
             state.warning?.let { Muted("Синхронизация не удалась ($it): записи с этого телефона могли не попасть в отчёт") }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (!state.kind.hasPeriod && state.loading) CircularProgressIndicator(Modifier.size(24.dp))
             state.report?.let { ReportContent(it) }
+        }
+    }
+}
+
+/** Период стрелками и «Сформировать сейчас». */
+@Composable
+private fun PeriodControls(state: ReportsState, viewModel: ReportsViewModel) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = viewModel::previous) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Назад")
+        }
+        Text(
+            when (state.kind) {
+                ReportKind.DAY -> dayTitle(state.date)
+                ReportKind.WEEK -> weekTitle(state.date)
+                ReportKind.MONTH -> monthTitle(state.date)
+                ReportKind.ANALYSIS -> ""
+            },
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = viewModel::next, enabled = state.canGoForward) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Вперёд")
+        }
+    }
+    Button(onClick = viewModel::refresh, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
+        if (state.loading) {
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            Text("Сформировать сейчас")
         }
     }
 }

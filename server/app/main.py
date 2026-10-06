@@ -1,4 +1,5 @@
-"""API сервера «Еда и здоровье» (ТЗ 9, 17): /health, /sync, /photos, /reports/day, /reports/week, /reports/month.
+"""API сервера «Еда и здоровье» (ТЗ 9, 17): /health, /sync, /photos, /reports/day, /reports/week, /reports/month,
+/reports/analysis.
 
 Каждый запрос — с заголовком X-Family-Key, без него 401.
 """
@@ -12,7 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from . import config
+from . import analysis, config
 from .daydata import TABLES as REPORT_TABLES
 from .daydata import Family
 from .db import TABLES, Store
@@ -120,5 +121,11 @@ def create_app(settings: config.Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Профиль не найден")
         first, last = period.month_of(date_)
         return period.build(family, profile, first, last, report_settings.load(settings.reports_config), kind="month")
+
+    @app.get("/reports/analysis")
+    def report_analysis(profile_id: str) -> dict:
+        """Последний ночной анализ Claude (ТЗ 17.9) в виде отчёта; прошлые не хранятся. Дата в запросе не нужна."""
+        return (analysis.report_for(analysis.analysis_dir(settings.data_dir), profile_id)
+                or analysis.empty_report(profile_id))
 
     return app

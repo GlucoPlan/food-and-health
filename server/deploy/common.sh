@@ -13,6 +13,9 @@ BACKUPS_DIR=/var/backups/foodhealth
 PORT=8765
 SERVICE=foodhealth
 USER_NAME=foodhealth
+# Под ним установлен Claude Code для ночного анализа (ТЗ 17.9)
+ANALYSIS_USER=ivan
+ANALYSIS_DIR=$DATA_DIR/analysis
 
 REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 

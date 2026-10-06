@@ -24,18 +24,21 @@ import javax.inject.Inject
  * Выбор периода отчёта (ТЗ 17.10). День: по умолчанию вчера, вперёд — до сегодня.
  * Неделя (с понедельника) и месяц: по умолчанию прошлые полные, вперёд — до текущих.
  * Дата недели — её понедельник, месяца — 1-е число: листание не сбивает день месяца.
+ * Анализ не листается: он один, последний.
  */
 object ReportDates {
     fun default(kind: ReportKind, today: LocalDate): LocalDate = when (kind) {
         ReportKind.DAY -> today.minusDays(1)
         ReportKind.WEEK -> weekStart(today).minusWeeks(1)
         ReportKind.MONTH -> today.withDayOfMonth(1).minusMonths(1)
+        ReportKind.ANALYSIS -> today
     }
 
     fun canGoForward(kind: ReportKind, date: LocalDate, today: LocalDate): Boolean = when (kind) {
         ReportKind.DAY -> date < today
         ReportKind.WEEK -> date < weekStart(today)
         ReportKind.MONTH -> date < today.withDayOfMonth(1)
+        ReportKind.ANALYSIS -> false
     }
 
     fun step(kind: ReportKind, date: LocalDate, forward: Boolean): LocalDate {
@@ -44,6 +47,7 @@ object ReportDates {
             ReportKind.DAY -> date.plusDays(sign)
             ReportKind.WEEK -> date.plusWeeks(sign)
             ReportKind.MONTH -> date.withDayOfMonth(1).plusMonths(sign)
+            ReportKind.ANALYSIS -> date
         }
     }
 

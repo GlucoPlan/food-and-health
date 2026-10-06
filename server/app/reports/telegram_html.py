@@ -4,7 +4,7 @@ import re
 from html import escape
 
 LIMIT = 4096  # длина сообщения Telegram; считаем с тегами — с запасом
-KIND_TITLES = {"day": "Итоги дня", "week": "Итоги недели", "month": "Итоги месяца"}
+KIND_TITLES = {"day": "Итоги дня", "week": "Итоги недели", "month": "Итоги месяца", "analysis": "Анализ Claude"}
 
 
 def _line(line: dict) -> str:

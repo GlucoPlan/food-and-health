@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly Claude analysis at 04:00 Moscow time
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 Europe/Moscow
+Persistent=true
+Unit=foodhealth-analysis-export.service
+
+[Install]
+WantedBy=timers.target

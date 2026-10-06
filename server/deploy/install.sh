@@ -76,11 +76,44 @@ sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" -e "s|@BACKUPS_DIR
 sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" -e "s|@USER@|$USER_NAME|g" \
     "$REPO_DIR/server/deploy/foodhealth-reports.service" > /etc/systemd/system/foodhealth-reports.service
 install -m 644 "$REPO_DIR/server/deploy/foodhealth-reports.timer" /etc/systemd/system/foodhealth-reports.timer
+
+say "Анализ Claude"
+ANALYSIS_HOME=$(getent passwd "$ANALYSIS_USER" | cut -d: -f6 || true)
+CLAUDE_BIN=
+if [[ -n $ANALYSIS_HOME && -x $ANALYSIS_HOME/.local/bin/claude ]]; then
+    CLAUDE_BIN=$ANALYSIS_HOME/.local/bin/claude
+fi
+if [[ -n $CLAUDE_BIN ]]; then
+    # Пользователь с Claude Code видит папку обмена через группу сервиса
+    usermod -aG "$USER_NAME" "$ANALYSIS_USER"
+    for d in "$ANALYSIS_DIR" "$ANALYSIS_DIR/prompts" "$ANALYSIS_DIR/in" "$ANALYSIS_DIR/out" "$ANALYSIS_DIR/work"; do
+        install -d -o "$USER_NAME" -g "$USER_NAME" -m 2770 "$d"
+    done
+    # Образцы промтов — только недостающие: правки не затираются
+    for f in "$REPO_DIR"/server/deploy/prompts/*.md; do
+        target=$ANALYSIS_DIR/prompts/$(basename "$f")
+        if [[ ! -e $target ]]; then
+            install -o "$USER_NAME" -g "$USER_NAME" -m 660 "$f" "$target"
+            echo "промт $(basename "$f") — образец"
+        fi
+    done
+    sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" -e "s|@USER@|$USER_NAME|g" \
+        "$REPO_DIR/server/deploy/foodhealth-analysis-export.service" > /etc/systemd/system/foodhealth-analysis-export.service
+    sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" -e "s|@USER@|$USER_NAME|g" \
+        -e "s|@ANALYSIS_USER@|$ANALYSIS_USER|g" -e "s|@CLAUDE_BIN@|$CLAUDE_BIN|g" \
+        "$REPO_DIR/server/deploy/foodhealth-analysis.service" > /etc/systemd/system/foodhealth-analysis.service
+    install -m 644 "$REPO_DIR/server/deploy/foodhealth-analysis.timer" /etc/systemd/system/foodhealth-analysis.timer
+    echo "Claude Code: $CLAUDE_BIN; промты: $ANALYSIS_DIR/prompts"
+else
+    echo "Claude Code у пользователя $ANALYSIS_USER не найден — ночной анализ не включён"
+fi
+
 systemctl daemon-reload
 systemctl enable "$SERVICE" >/dev/null
 systemctl restart "$SERVICE"
 systemctl enable --now foodhealth-backup.timer >/dev/null
 systemctl enable --now foodhealth-reports.timer >/dev/null
+if [[ -n $CLAUDE_BIN ]]; then systemctl enable --now foodhealth-analysis.timer >/dev/null; fi
 wait_local_health
 echo "сервер отвечает на 127.0.0.1:$PORT"
 
@@ -126,6 +159,9 @@ else
     echo "Ключ семьи прежний: sudo cat $ENV_FILE"
 fi
 echo "Резервные копии: $BACKUPS_DIR, каждый день в 03:30"
+if [[ -n $CLAUDE_BIN ]]; then
+    echo "Анализ Claude: каждый день в 4:00 по Москве; проверить сейчас: sudo bash server/deploy/analysis-now.sh"
+fi
 if [[ -f $TELEGRAM_CONFIG ]]; then
     echo "Отчёты в Telegram: каждый день в 6:00 по Москве"
 else

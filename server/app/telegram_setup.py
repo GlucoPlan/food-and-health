@@ -129,8 +129,8 @@ def configure(
 
 def _ask_backup_chat(people: list[Recipient], current: int | None, ask: Callable[[str], str],
                      say: Callable[[str], None]) -> int | None:
-    """Кому присылать копию базы с фото (ТЗ 17.8): один человек или никто."""
-    say("\nКопия базы с фото каждую ночь — кому присылать?")
+    """Кому присылать копию базы с фото (ТЗ 17.8) и сообщения о сбоях анализа (17.9): один человек или никто."""
+    say("\nКопия базы с фото каждую ночь и сообщения о сбоях — кому присылать?")
     for i, r in enumerate(people, 1):
         say(f"  {i}. {r.name}")
     now = next((r.name for r in people if r.chat_id == current), "никому")

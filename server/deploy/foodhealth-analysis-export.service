@@ -1,0 +1,19 @@
+# Шаблон: install.sh подставляет пути. Запускается таймером foodhealth-analysis.timer в 4:00 (ТЗ 17.9):
+# задания на каждый профиль, затем Claude Code (foodhealth-analysis.service).
+[Unit]
+Description=Food and health data export for Claude analysis
+OnSuccess=foodhealth-analysis.service
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@USER@
+EnvironmentFile=@ENV_FILE@
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/venv/bin/python -m app.analysis export
+MemoryMax=200M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=@DATA_DIR@
