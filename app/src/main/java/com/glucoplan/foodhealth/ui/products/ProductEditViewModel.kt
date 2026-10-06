@@ -26,6 +26,8 @@ data class ProductEditState(
     val done: Boolean = false,
     /** id только что созданного продукта: его сразу выбирает экран выбора продукта. */
     val createdId: String? = null,
+    /** В новом продукте отсканирован код уже существующего: экран открывает его карточку. */
+    val existingId: String? = null,
 )
 
 @HiltViewModel
@@ -65,7 +67,18 @@ class ProductEditViewModel @Inject constructor(
         it.copy(form = change(it.form), errors = it.errors - field - MACROS_KEY)
     }
 
-    fun onScanned(barcode: String) = edit(ProductField.BARCODE) { it.copy(barcode = barcode) }
+    /** Код существующего продукта в новом продукте — переход к нему, иначе код просто подставляется. */
+    fun onScanned(barcode: String) {
+        if (id != null) {
+            edit(ProductField.BARCODE) { it.copy(barcode = barcode) }
+            return
+        }
+        viewModelScope.launch {
+            val existing = products.findByBarcode(barcode)
+            if (existing != null) _state.update { it.copy(existingId = existing.id) }
+            else edit(ProductField.BARCODE) { it.copy(barcode = barcode) }
+        }
+    }
 
     fun toggleMicro() = _state.update { it.copy(microExpanded = !it.microExpanded) }
 

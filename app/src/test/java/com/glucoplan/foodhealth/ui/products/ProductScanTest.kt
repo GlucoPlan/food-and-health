@@ -2,6 +2,7 @@ package com.glucoplan.foodhealth.ui.products
 
 import android.app.Application
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.lifecycle.SavedStateHandle
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -32,7 +33,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import java.io.File
 
-/** Что происходит на вкладке «Продукты» после сканирования. */
+/** Что происходит на вкладке «Продукты» и в карточке продукта после сканирования. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], application = Application::class)
@@ -97,5 +98,48 @@ class ProductScanTest {
         repo.delete(repo.findByBarcode("4600001")!!.id)
         vm.onScanned("4600001")
         assertThat(vm.createWithBarcode.await { it != null }).isEqualTo("4600001")
+    }
+
+    private fun editVm(id: String? = null) =
+        ProductEditViewModel(SavedStateHandle(mapOf(ProductEditViewModel.ARG_ID to id)), repo)
+
+    @Test
+    fun `код существующего продукта в новом продукте открывает его карточку`() = runTest {
+        repo.save(null, milk)
+        val milkId = repo.findByBarcode("4600001")!!.id
+        val edit = editVm()
+        edit.onScanned("4600001")
+        assertThat(edit.state.await { it.existingId != null }.existingId).isEqualTo(milkId)
+    }
+
+    @Test
+    fun `неизвестный код в новом продукте подставляется в поле`() = runTest {
+        val edit = editVm()
+        edit.onScanned("4600002")
+        val state = edit.state.await { it.form.barcode.isNotEmpty() }
+        assertThat(state.form.barcode).isEqualTo("4600002")
+        assertThat(state.existingId).isNull()
+    }
+
+    @Test
+    fun `код удалённого продукта в новом продукте подставляется в поле`() = runTest {
+        repo.save(null, milk)
+        repo.delete(repo.findByBarcode("4600001")!!.id)
+        val edit = editVm()
+        edit.onScanned("4600001")
+        val state = edit.state.await { it.form.barcode.isNotEmpty() }
+        assertThat(state.existingId).isNull()
+    }
+
+    @Test
+    fun `в существующем продукте чужой код не уводит с карточки`() = runTest {
+        repo.save(null, milk)
+        repo.save(null, milk.copy(name = "Кефир", barcode = "4600003"))
+        val kefirId = repo.findByBarcode("4600003")!!.id
+        val edit = editVm(kefirId)
+        edit.state.await { it.loaded }
+        edit.onScanned("4600001")
+        val state = edit.state.await { it.form.barcode == "4600001" }
+        assertThat(state.existingId).isNull()
     }
 }

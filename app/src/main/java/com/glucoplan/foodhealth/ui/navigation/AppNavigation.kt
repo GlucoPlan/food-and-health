@@ -239,6 +239,11 @@ fun AppNavigation(settingsBadge: Boolean) {
                             }
                             navController.popBackStack()
                         },
+                        onOpenExisting = { id ->
+                            // Карточка существующего продукта встаёт на место нового
+                            navController.popBackStack()
+                            navController.navigate("$PRODUCT_EDIT_BASE?${ProductEditViewModel.ARG_ID}=$id")
+                        },
                         onScan = { navController.navigate(SCANNER) },
                         scannedBarcode = scanned,
                         onScannedHandled = { entry.savedStateHandle[SCANNED_BARCODE] = null },

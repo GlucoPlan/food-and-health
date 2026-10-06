@@ -54,6 +54,7 @@ import com.glucoplan.foodhealth.data.product.ProductSource
 @Composable
 fun ProductEditScreen(
     onDone: (createdId: String?) -> Unit,
+    onOpenExisting: (id: String) -> Unit,
     onScan: () -> Unit,
     scannedBarcode: String?,
     onScannedHandled: () -> Unit,
@@ -70,6 +71,8 @@ fun ProductEditScreen(
     }
 
     LaunchedEffect(state.done) { if (state.done) onDone(state.createdId) }
+
+    LaunchedEffect(state.existingId) { state.existingId?.let(onOpenExisting) }
 
     Scaffold(
         topBar = {
