@@ -1,7 +1,8 @@
 """Telegram Bot API (ТЗ 17.7): бот только отправляет, команд не слушает.
 
-Токен — FH_TELEGRAM_TOKEN в файле окружения сервера. Кто чьи отчёты получает — telegram.json рядом с ним:
-    {"recipients": [{"chat_id": 123, "name": "Иван", "profiles": ["<id профиля>", ...]}]}
+Токен — FH_TELEGRAM_TOKEN в файле окружения сервера. Кто чьи отчёты получает и кому идёт
+копия базы (ТЗ 17.8) — telegram.json рядом с ним:
+    {"recipients": [{"chat_id": 123, "name": "Иван", "profiles": ["<id профиля>", ...]}], "backup_chat_id": 123}
 Только стандартная библиотека: лишних зависимостей на сервере нет.
 """
 
@@ -34,8 +35,9 @@ def _multipart(fields: dict, files: dict) -> tuple[bytes, str]:
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
                      + text.encode() + b"\r\n")
     for name, (filename, data) in files.items():
+        mime = "image/png" if filename.endswith(".png") else "application/octet-stream"
         parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
-                     f"Content-Type: image/png\r\n\r\n".encode() + data + b"\r\n")
+                     f"Content-Type: {mime}\r\n\r\n".encode() + data + b"\r\n")
     parts.append(f"--{boundary}--\r\n".encode())
     return b"".join(parts), f"multipart/form-data; boundary={boundary}"
 
@@ -90,11 +92,16 @@ class Bot:
             files = {f"p{i}": (f"chart{i}.png", png) for i, (_, png) in enumerate(chunk)}
             self.call("sendMediaGroup", files=files, chat_id=str(chat_id), media=media)
 
-    def send(self, chat_id: int, html: str) -> None:
+    def send(self, chat_id: int, html: str, silent: bool = False) -> None:
         self.call(
             "sendMessage", chat_id=chat_id, text=html, parse_mode="HTML",
-            link_preview_options={"is_disabled": True},
+            link_preview_options={"is_disabled": True}, disable_notification=silent,
         )
+
+    def send_document(self, chat_id: int, filename: str, data: bytes, caption: str, silent: bool = False) -> None:
+        """Файл до 50 МБ (лимит Bot API); подпись — HTML."""
+        self.call("sendDocument", files={"document": (filename, data)}, chat_id=str(chat_id),
+                  caption=caption, parse_mode="HTML", disable_notification=silent)
 
 
 @dataclass(frozen=True)
@@ -123,20 +130,30 @@ class Recipient:
     profiles: tuple[str, ...]
 
 
+def _load(path: Path) -> dict:
+    return json.loads(path.read_text()) if path.is_file() else {}
+
+
 def load_recipients(path: Path) -> list[Recipient]:
-    if not path.is_file():
-        return []
-    data = json.loads(path.read_text())
+    data = _load(path)
     return [
         Recipient(int(r["chat_id"]), str(r.get("name", r["chat_id"])), tuple(r.get("profiles", [])))
         for r in data.get("recipients", [])
     ]
 
 
-def save_recipients(path: Path, recipients: list[Recipient]) -> None:
-    data = {"recipients": [
+def load_backup_chat(path: Path) -> int | None:
+    """Кому каждую ночь идёт копия базы (ТЗ 17.8); None — никому."""
+    chat = _load(path).get("backup_chat_id")
+    return int(chat) if chat is not None else None
+
+
+def save_recipients(path: Path, recipients: list[Recipient], backup_chat_id: int | None = None) -> None:
+    data: dict = {"recipients": [
         {"chat_id": r.chat_id, "name": r.name, "profiles": list(r.profiles)} for r in recipients
     ]}
+    if backup_chat_id is not None:
+        data["backup_chat_id"] = backup_chat_id
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
     tmp.replace(path)

@@ -1,4 +1,4 @@
-"""Настройка бота (ТЗ 17.7): токен и кто чьи отчёты получает. Запускается из deploy/telegram-setup.sh.
+"""Настройка бота (ТЗ 17.7, 17.8): токен, кто чьи отчёты получает и кому идёт копия базы. Запускается из deploy/telegram-setup.sh.
 
     python -m app.telegram_setup profiles                  — профили семьи в JSON (от имени сервиса)
     python -m app.telegram_setup configure --env-file ... --config ... --profiles ФАЙЛ   — диалог (root)
@@ -13,7 +13,8 @@ from typing import Callable
 
 from .daydata import Family
 from .db import Store
-from .telegram import Bot, Recipient, TelegramError, chats_from_updates, load_recipients, save_recipients
+from .telegram import (Bot, Recipient, TelegramError, chats_from_updates, load_backup_chat, load_recipients,
+                       save_recipients)
 
 TOKEN_KEY = "FH_TELEGRAM_TOKEN"
 
@@ -108,7 +109,8 @@ def configure(
         chosen = r.profiles if choice is None else tuple(profiles[i]["id"] for i in choice)
         result.append(Recipient(r.chat_id, r.name, chosen))
 
-    save_recipients(config, result)
+    backup_chat = _ask_backup_chat(result, load_backup_chat(config), ask, say)
+    save_recipients(config, result, backup_chat)
     say(f"\nСохранено в {config}")
     for r in result:
         if not r.profiles:
@@ -119,7 +121,31 @@ def configure(
             say(f"{r.name}: пробное сообщение отправлено")
         except TelegramError as e:
             say(f"{r.name}: пробное сообщение не ушло — {e}")
+    if backup_chat is not None:
+        say("Копия базы будет приходить каждую ночь после резервной копии (3:30). "
+            "Отправить сейчас: sudo bash server/deploy/backup-now.sh")
     return 0
+
+
+def _ask_backup_chat(people: list[Recipient], current: int | None, ask: Callable[[str], str],
+                     say: Callable[[str], None]) -> int | None:
+    """Кому присылать копию базы с фото (ТЗ 17.8): один человек или никто."""
+    say("\nКопия базы с фото каждую ночь — кому присылать?")
+    for i, r in enumerate(people, 1):
+        say(f"  {i}. {r.name}")
+    now = next((r.name for r in people if r.chat_id == current), "никому")
+    while True:
+        answer = ask(f"Сейчас: {now}. Номер, 0 — никому, Enter — оставить: ")
+        try:
+            choice = parse_choice(answer, len(people))
+            if choice is not None and len(choice) > 1:
+                raise ValueError("нужен один номер")
+            break
+        except ValueError as e:
+            say(f"Не понял: {e}")
+    if choice is None:
+        return current if any(r.chat_id == current for r in people) else None
+    return people[choice[0]].chat_id if choice else None
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -1,6 +1,8 @@
 # Шаблон: install.sh подставляет пути. Запускается таймером foodhealth-backup.timer.
 [Unit]
 Description=Food and health server cleanup and backup
+# Полная копия (база и фото) уходит в Telegram (ТЗ 17.8), если настроено
+OnSuccess=foodhealth-backup-telegram.service
 
 [Service]
 Type=oneshot

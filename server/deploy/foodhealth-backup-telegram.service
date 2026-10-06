@@ -1,0 +1,17 @@
+# Шаблон: install.sh подставляет пути. Запускается после каждой успешной копии (OnSuccess в foodhealth-backup.service).
+# От root: копии лежат в папке, закрытой для остальных.
+[Unit]
+Description=Food and health backup copy to Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=@ENV_FILE@
+WorkingDirectory=@APP_DIR@
+ExecStart=@APP_DIR@/venv/bin/python -m app.send_backup --backups-dir @BACKUPS_DIR@
+# Повторы при недоступном Telegram — до 25 минут
+TimeoutStartSec=1h
+# Архив собирается во временной папке, в память читается по одной части (до 45 МБ)
+MemoryMax=300M
+PrivateTmp=true

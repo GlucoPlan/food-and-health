@@ -8,7 +8,8 @@ from app import telegram_setup
 from app.db import Store
 from app.reports.telegram_html import LIMIT, render
 from app.send_reports import send_daily
-from app.telegram import Bot, Recipient, TelegramError, chats_from_updates, load_recipients, save_recipients
+from app.telegram import (Bot, Recipient, TelegramError, chats_from_updates, load_backup_chat, load_recipients,
+                          save_recipients)
 
 from .test_reports import DAY, at, item, meal, product, profile
 
@@ -115,6 +116,9 @@ def test_получатели_туда_и_обратно(tmp_path):
     people = [Recipient(1, "Иван", ("me", "kid")), Recipient(2, "Рита", ())]
     save_recipients(path, people)
     assert load_recipients(path) == people
+    assert load_backup_chat(path) is None
+    save_recipients(path, people, backup_chat_id=1)
+    assert (load_recipients(path), load_backup_chat(path)) == (people, 1)
 
 
 # ---------- рассылка ----------
@@ -204,7 +208,7 @@ def test_настройка_токен_получатели_пробные_со�
     config = tmp_path / "telegram.json"
     tg = FakeTelegram(updates=[update(1, "Иван", "ivan"), update(2, "Рита")])
     profiles = [{"id": "kid", "name": "Дочь"}, {"id": "me", "name": "Я"}, {"id": "wife", "name": "Рита"}]
-    answers = iter(["bad-token", "1:good", "2,1", "3,1"])
+    answers = iter(["bad-token", "1:good", "2,1", "3,1", "1,2", "1"])
     out = []
 
     code = telegram_setup.configure(env, config, profiles, ask=lambda _: next(answers), say=out.append,
@@ -220,12 +224,21 @@ def test_настройка_токен_получатели_пробные_со�
     assert [chat for chat, _ in tg.sent] == [1, 2]
     assert "итоги дня: Дочь, Я" in tg.sent[0][1]
     assert any("Токен не подошёл" in line for line in out)
+    assert any("нужен один номер" in line for line in out)
+    assert load_backup_chat(config) == 1
 
     # Повторный запуск: токен уже есть, Enter — оставить как было, 0 — ничего не слать
-    answers = iter(["", "0"])
+    answers = iter(["", "0", ""])
     telegram_setup.configure(env, config, profiles, ask=lambda _: next(answers), say=out.append,
                              make_bot=lambda token: Bot(token, post=tg.post))
     assert load_recipients(config) == [Recipient(1, "Иван (@ivan)", ("kid", "me")), Recipient(2, "Рита", ())]
+    assert load_backup_chat(config) == 1
+
+    # Копию — никому
+    answers = iter(["", "", "0"])
+    telegram_setup.configure(env, config, profiles, ask=lambda _: next(answers), say=out.append,
+                             make_bot=lambda token: Bot(token, post=tg.post))
+    assert load_backup_chat(config) is None
 
 
 def test_настройка_никто_не_писал_боту(tmp_path):
@@ -289,3 +302,6 @@ def test_multipart_собирается_с_файлами():
     assert body.startswith(f"--{boundary}\r\n".encode()) and body.endswith(f"--{boundary}--\r\n".encode())
     assert b'name="media"\r\n\r\n[{"type": "photo"}]' in body
     assert b'filename="c.png"' in body and b"\x89PNG" in body
+    assert b"Content-Type: image/png" in body
+    body, _ = _multipart({}, {"document": ("a.tar.gz", b"x")})
+    assert b"Content-Type: application/octet-stream" in body

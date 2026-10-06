@@ -71,6 +71,8 @@ sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" -e "s|@ENV_FILE@|$
 sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" -e "s|@BACKUPS_DIR@|$BACKUPS_DIR|g" \
     "$REPO_DIR/server/deploy/foodhealth-backup.service" > /etc/systemd/system/foodhealth-backup.service
 install -m 644 "$REPO_DIR/server/deploy/foodhealth-backup.timer" /etc/systemd/system/foodhealth-backup.timer
+sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" -e "s|@BACKUPS_DIR@|$BACKUPS_DIR|g" \
+    "$REPO_DIR/server/deploy/foodhealth-backup-telegram.service" > /etc/systemd/system/foodhealth-backup-telegram.service
 sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" -e "s|@ENV_FILE@|$ENV_FILE|g" -e "s|@USER@|$USER_NAME|g" \
     "$REPO_DIR/server/deploy/foodhealth-reports.service" > /etc/systemd/system/foodhealth-reports.service
 install -m 644 "$REPO_DIR/server/deploy/foodhealth-reports.timer" /etc/systemd/system/foodhealth-reports.timer

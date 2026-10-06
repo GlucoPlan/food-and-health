@@ -20,7 +20,7 @@ photos/     фото кастрюль, <id>.jpg
 | `FH_FAMILY_KEY` | ключ семьи, не короче 16 символов; в репозиторий не попадает |
 | `FH_DATA_DIR`   | папка данных (по умолчанию `./data`)               |
 | `FH_TELEGRAM_TOKEN` | токен бота от @BotFather; без него рассылки нет |
-| `FH_TELEGRAM_CONFIG` | кто чьи отчёты получает (по умолчанию `/etc/foodhealth/telegram.json`) |
+| `FH_TELEGRAM_CONFIG` | кто чьи отчёты получает и кому идёт копия базы (по умолчанию `/etc/foodhealth/telegram.json`) |
 | `FH_REPORTS_CONFIG` | настройки отчётов (по умолчанию `/etc/foodhealth/reports.json`) |
 
 ## Запуск для разработки
@@ -66,6 +66,11 @@ sudo bash server/deploy/restore.sh /var/backups/foodhealth/2026-09-29_033000   #
 ```
 
 Перед восстановлением текущие данные сохраняются отдельной копией.
+
+После каждой успешной копии (`foodhealth-backup-telegram.service`, ТЗ 17.8) полная копия — база и фото —
+уходит в Telegram одним архивом, без звука, тому, кого выбрали в `telegram-setup.sh`. Ключа семьи и токена
+в архиве нет. Больше 45 МБ — частями (`.part01`, `.part02`…), собрать: `cat АРХИВ.part* > АРХИВ`.
+Восстановить: `sudo bash server/deploy/restore.sh foodhealth-2026-10-07_033000.tar.gz`.
 
 ## Ненужные фото кастрюль
 
