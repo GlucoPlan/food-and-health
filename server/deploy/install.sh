@@ -14,7 +14,8 @@ require_root "$@"
 
 say "Пакеты"
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -q
+# Недоступный сторонний репозиторий (у Caddy бывает 402) не мешает обновлению: нужного пакета не будет — упадёт install
+apt-get update -q || echo "часть списков пакетов не обновилась — продолжаю с прежними"
 apt-get install -y -q python3-venv sqlite3 curl gnupg
 if ! command -v caddy >/dev/null; then
     curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key \
