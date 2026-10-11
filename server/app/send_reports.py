@@ -98,7 +98,9 @@ def _save_sent(path: Path, sent: set[str], now: date) -> None:
 
 def _build(job: Job, family: Family, profile: dict, settings: ReportSettings, analysis_dir: Path | None) -> dict | None:
     if job.kind == "analysis":
-        return analysis.report_for(analysis_dir, profile["id"], job.first) if analysis_dir else None
+        if analysis_dir is None or not settings.analysis_on(profile):
+            return None
+        return analysis.report_for(analysis_dir, profile["id"], job.first)
     if job.kind == "day":
         return daily.build(family, profile, job.first)
     return period.build(family, profile, job.first, job.last, settings, kind=job.kind)
@@ -169,11 +171,12 @@ def send(
 
 
 def notify_analysis_failures(store: Store, bot: Bot, chat_id: int | None, analysis_dir: Path, day: date,
-                             sent_path: Path, log: Callable[[str], None] = print) -> None:
+                             sent_path: Path, settings: ReportSettings = ReportSettings(),
+                             log: Callable[[str], None] = print) -> None:
     """Анализ не получился (лимит, истёк вход, нет сети) — короткое сообщение Ивану, один раз (ТЗ 17.9)."""
     if chat_id is None:
         return
-    failed = analysis.failures(analysis_dir, Family(store.records(["profile"])).profiles, day)
+    failed = analysis.failures(analysis_dir, Family(store.records(["profile"])).profiles, day, settings)
     key = f"{day.isoformat()}|analysis-failed"
     sent = _load_sent(sent_path)
     if not failed or key in sent:
@@ -220,7 +223,8 @@ def main(argv: list[str] | None = None) -> int:
     failed = send(store, recipients, bot, jobs, data_dir / SENT_FILE, settings=settings, force=args.force,
                   analysis_dir=adir if with_analysis else None)
     if with_analysis:
-        notify_analysis_failures(store, bot, load_backup_chat(args.config), adir, jobs[0].first, data_dir / SENT_FILE)
+        notify_analysis_failures(store, bot, load_backup_chat(args.config), adir, jobs[0].first, data_dir / SENT_FILE,
+                                 settings)
     return 1 if failed else 0
 
 

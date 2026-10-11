@@ -192,3 +192,51 @@ def test_без_анализа_задания_нет():
 def test_выгрузка_без_промтов_молча_выходит(settings, capsys):
     assert analysis.main(["--data-dir", str(settings.data_dir), "export"]) == 0
     assert "не включён" in capsys.readouterr().out
+
+
+# ---------- выключатель в reports.json ----------
+
+def test_выключенный_профиль_без_задания_прошлый_анализ_удаляется(adir, family):
+    analysis.export(family, adir, DAY, ReportSettings())
+    runner, _ = fake_claude({"Я": (0, ANSWER, ""), "Дочь": (0, "Старый", "")})
+    analysis.run(adir, "claude", runner, NOW, log=lambda _: None)
+
+    off = ReportSettings(analysis_off=frozenset({"Дочь"}))
+    next_day = date(2026, 9, 30)
+    assert analysis.export(family, adir, next_day, off) == ["me"]
+    assert analysis.latest(adir, "kid") is None and not (adir / "out" / "kid.status.json").exists()
+    assert analysis.latest(adir, "me") is not None
+    assert analysis.failures(adir, family.profiles, next_day, off) == ["Я: не запускался"]
+
+
+def test_выключенный_профиль_не_уходит_в_telegram(adir, family, settings, tmp_path):
+    analysis.export(family, adir, DAY, ReportSettings())
+    runner, _ = fake_claude({"Я": (0, ANSWER, ""), "Дочь": (0, "Всё хорошо", "")})
+    analysis.run(adir, "claude", runner, NOW, log=lambda _: None)
+    tg = FakeTelegram()
+    send(Store(settings.db_path), [Recipient(1, "Иван", ("me", "kid"))], tg.bot(), default_jobs(DAY, with_analysis=True),
+         tmp_path / "sent.json", settings=ReportSettings(analysis_off=frozenset({"Дочь"})),
+         sleep=pytest.fail, log=lambda _: None, analysis_dir=adir)
+    heads = [text.split("\n", 1)[0] for _, text in tg.sent]
+    assert [h for h in heads if "Анализ Claude" in h] == [
+        "<b>Анализ Claude · Я · по данным за 29 сентября, вторник</b>"]
+
+
+def test_эндпоинт_выключенный_анализ(settings, adir, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    from .conftest import KEY
+
+    config = tmp_path / "reports.json"
+    config.write_text(json.dumps({"analysis_off": ["Я"]}))
+    client = TestClient(create_app(Settings(family_key=KEY, data_dir=settings.data_dir, reports_config=config)),
+                        headers={"X-Family-Key": KEY})
+    put(client, profile("me", "Я"))
+    (adir / "out").mkdir()
+    (adir / "out" / "me.json").write_text(json.dumps(
+        {"profile_id": "me", "name": "Я", "date": "2026-09-29", "text": ANSWER}))
+    rep = client.get("/reports/analysis", params={"profile_id": "me"}).json()
+    assert rep["empty"] is True and rep["title"] == "Анализ выключен"

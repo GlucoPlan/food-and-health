@@ -2,7 +2,7 @@
 
 FH_FAMILY_KEY  ключ семьи (обязателен). В репозиторий не попадает (ТЗ 8.5).
 FH_DATA_DIR    папка данных: база fh.db и фото в photos/. Переезд = перенос этой папки.
-FH_REPORTS_CONFIG  настройки отчётов (время приёмов пищи), по умолчанию /etc/foodhealth/reports.json.
+FH_REPORTS_CONFIG  настройки отчётов (время приёмов пищи, выключенный анализ), по умолчанию /etc/foodhealth/reports.json.
 """
 
 import os

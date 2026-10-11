@@ -153,6 +153,20 @@ def test_настройки_отчётов_ошибка_в_файле_значе
     assert ok.slot(599) == "А" and ok.slot(600) == "Б"
 
 
+def test_настройки_выключенный_анализ_ошибка_в_одной_настройке_не_сбрасывает_другую(tmp_path, capsys):
+    path = tmp_path / "r.json"
+    path.write_text(json.dumps({"analysis_off": [" Дочь "], "meal_slots": [{"name": "А", "until": "10:00"}]}))
+    s = report_settings.load(path)
+    assert s.analysis_off == {"Дочь"} and s.meal_slots == ReportSettings().meal_slots
+    assert "meal_slots" in capsys.readouterr().err
+    assert not s.analysis_on({"name": "Дочь"}) and s.analysis_on({"name": "Я"})
+    path.write_text(json.dumps({"analysis_off": "Дочь"}))
+    assert report_settings.load(path).analysis_off == frozenset()
+    assert "analysis_off" in capsys.readouterr().err
+    path.write_text("[]")
+    assert report_settings.load(path) == ReportSettings()
+
+
 def test_графики_png_и_только_при_данных(me):
     assert week(me)["images"] == []
     food(me, MON, 2000)

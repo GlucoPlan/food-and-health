@@ -126,6 +126,9 @@ def create_app(settings: config.Settings | None = None) -> FastAPI:
     @app.get("/reports/analysis")
     def report_analysis(profile_id: str) -> dict:
         """Последний ночной анализ Claude (ТЗ 17.9) в виде отчёта; прошлые не хранятся. Дата в запросе не нужна."""
+        profile = Family(store.records(["profile"])).profiles.get(profile_id)
+        if profile is not None and not report_settings.load(settings.reports_config).analysis_on(profile):
+            return analysis.empty_report(profile_id, off=True)
         return (analysis.report_for(analysis.analysis_dir(settings.data_dir), profile_id)
                 or analysis.empty_report(profile_id))
 

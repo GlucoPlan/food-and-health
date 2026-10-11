@@ -6,6 +6,8 @@
     out/      <id профиля>.json — последний удачный анализ; <id профиля>.status.json — итог последнего запуска
     work/     пустая рабочая папка Claude Code
 
+Профили из «analysis_off» в reports.json пропускаются, их прошлый анализ удаляется.
+
     python -m app.analysis export [--date ГГГГ-ММ-ДД]   — 4:00, от имени сервиса: задания на каждого (за вчера)
     python -m app.analysis run --claude ПУТЬ              — сразу после, от имени ivan: Claude Code по очереди
 """
@@ -22,6 +24,7 @@ from pathlib import Path
 from typing import Callable
 
 from .daydata import MSK, num
+from .report_settings import ReportSettings
 
 DIR_NAME = "analysis"
 TIMEOUT = 15 * 60
@@ -141,13 +144,18 @@ def build_input(family, profile: dict, day: date, settings) -> str:
 
 
 def export(family, adir: Path, day: date, settings) -> list[str]:
-    """Задания на каждый профиль. Возвращает id профилей."""
+    """Задания на каждый профиль, кроме выключенных в настройках. Возвращает id профилей."""
     inbox = adir / "in"
     inbox.mkdir(exist_ok=True)
     for old in inbox.glob("*.json"):
         old.unlink()
     ids = []
     for pid, profile in sorted(family.profiles.items(), key=lambda p: p[1].get("name", "")):
+        if not settings.analysis_on(profile):
+            # Анализ выключен — прошлый тоже не показываем
+            for f in (adir / "out" / f"{pid}.json", adir / "out" / f"{pid}.status.json"):
+                f.unlink(missing_ok=True)
+            continue
         _write_json(inbox / f"{pid}.json", {
             "profile_id": pid, "name": profile.get("name", ""), "date": day.isoformat(),
             "prompt": prompt_for(adir / "prompts", profile),
@@ -278,19 +286,22 @@ def report_for(adir: Path, profile_id: str, day: date | None = None) -> dict | N
     return to_report(a)
 
 
-def empty_report(profile_id: str) -> dict:
+def empty_report(profile_id: str, off: bool = False) -> dict:
+    title, text = (("Анализ выключен", "Claude не разбирает данные этого профиля: так задано в настройках сервера")
+                   if off else ("Анализа пока нет", "Claude разбирает данные ночью, анализ появляется к утру"))
     return {
-        "kind": "analysis", "date": "", "profile_id": profile_id, "title": "Анализа пока нет",
+        "kind": "analysis", "date": "", "profile_id": profile_id, "title": title,
         "incomplete": False, "empty": True, "images": [], "sections": [],
-        "summary": [{"spans": [{"text": "Claude разбирает данные ночью, анализ появляется к утру", "bold": False}],
-                     "style": "muted"}],
+        "summary": [{"spans": [{"text": text, "bold": False}], "style": "muted"}],
     }
 
 
-def failures(adir: Path, profiles: dict[str, dict], day: date) -> list[str]:
-    """Чей анализ за [day] не получился: «Имя: причина»."""
+def failures(adir: Path, profiles: dict[str, dict], day: date, settings: ReportSettings = ReportSettings()) -> list[str]:
+    """Чей анализ за [day] не получился: «Имя: причина». Выключенные профили не в счёт."""
     result = []
     for pid, profile in sorted(profiles.items(), key=lambda p: p[1].get("name", "")):
+        if not settings.analysis_on(profile):
+            continue
         status = _read_json(adir / "out" / f"{pid}.status.json")
         if status is None or status.get("date") != day.isoformat():
             reason = "не запускался"
