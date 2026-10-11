@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,8 +61,14 @@ private val MONTH = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.forLanguageT
 /** Отчёты и анализ (ТЗ 17.10): отчёты владельца телефона — итоги дня, недели и месяца, ночной анализ Claude. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewModel()) {
+fun ReportsScreen(
+    onBack: () -> Unit,
+    viewModel: ReportsViewModel = hiltViewModel(),
+    doctorPdf: DoctorPdfViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val sd1Profiles by doctorPdf.sd1Profiles.collectAsStateWithLifecycle()
+    val pdfDialog by doctorPdf.dialog.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -85,6 +92,12 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // ТЗ 17.11: на любом телефоне, где в семье есть профиль с СД1
+            if (sd1Profiles.isNotEmpty()) {
+                OutlinedButton(onClick = doctorPdf::open, modifier = Modifier.fillMaxWidth()) {
+                    Text("PDF для врача")
+                }
+            }
             PrimaryTabRow(selectedTabIndex = state.kind.ordinal) {
                 ReportKind.entries.forEach { kind ->
                     Tab(
@@ -109,6 +122,7 @@ fun ReportsScreen(onBack: () -> Unit, viewModel: ReportsViewModel = hiltViewMode
             state.report?.let { ReportContent(it) }
         }
     }
+    pdfDialog?.let { DoctorPdfDialogView(it, sd1Profiles, doctorPdf) }
 }
 
 /** Период стрелками и «Сформировать сейчас». */

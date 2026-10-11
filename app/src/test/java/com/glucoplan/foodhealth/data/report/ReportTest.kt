@@ -18,7 +18,7 @@ import org.robolectric.annotation.Config
 import java.io.IOException
 import java.time.LocalDate
 
-/** Отчёты с сервера (ТЗ 17.5, 17.10): разбор ответа, «Сформировать сейчас», выбор дня. */
+/** Отчёты с сервера (ТЗ 17.5, 17.10, 17.11): разбор ответа, «Сформировать сейчас», выбор дня, PDF для врача. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34], application = Application::class)
 class ReportTest {
@@ -56,6 +56,14 @@ class ReportTest {
             recordsAtRequest = server.records.size
             asked = Triple(kind, profileId, date)
             return ReportJson.parse(sample)
+        }
+
+        var pdfAsked: Triple<String, LocalDate, LocalDate>? = null
+        override suspend fun doctorPdf(config: ServerConfig, profileId: String, first: LocalDate, last: LocalDate): ByteArray {
+            error?.let { throw it }
+            recordsAtRequest = server.records.size
+            pdfAsked = Triple(profileId, first, last)
+            return "%PDF-1.3".toByteArray()
         }
     }
 
@@ -198,5 +206,64 @@ class ReportTest {
         )
         assertThat(empty.empty).isTrue()
         assertThat(empty.summary.single().style).isEqualTo(LineStyle.MUTED)
+    }
+
+    @Test
+    fun `PDF для врача — сначала отправляются записи телефона`() = runTest {
+        val a = phone()
+        a.addProduct("Молоко")
+        val reports = FakeReports()
+        val first = LocalDate.of(2026, 9, 1)
+        val last = LocalDate.of(2026, 9, 30)
+        val result = ReportRepository(reports, a.settings, a.engine).doctorPdf("kid", first, last) as PdfResult.Ok
+        assertThat(reports.recordsAtRequest).isEqualTo(1)
+        assertThat(reports.pdfAsked).isEqualTo(Triple("kid", first, last))
+        assertThat(result.pdf.decodeToString()).startsWith("%PDF")
+        assertThat(result.syncWarning).isNull()
+    }
+
+    @Test
+    fun `PDF для врача — нет сети`() = runTest {
+        val a = phone()
+        val day = LocalDate.of(2026, 9, 1)
+        assertThat(ReportRepository(FakeReports(SyncException.Network(IOException("timeout"))), a.settings, a.engine)
+            .doctorPdf("kid", day, day)).isEqualTo(PdfResult.Failed("PDF доступен только при связи с сервером"))
+    }
+
+    @Test
+    fun `PDF для врача — сервер не настроен`() = runTest {
+        val a = phone(connected = false)
+        val day = LocalDate.of(2026, 9, 1)
+        assertThat(ReportRepository(FakeReports(), a.settings, a.engine).doctorPdf("kid", day, day))
+            .isEqualTo(PdfResult.NotConfigured)
+    }
+
+    @Test
+    fun `период PDF — по умолчанию прошлый месяц, проверки`() {
+        assertThat(DoctorPdfPeriod.default(LocalDate.of(2026, 10, 11)))
+            .isEqualTo(LocalDate.of(2026, 9, 1) to LocalDate.of(2026, 9, 30))
+        assertThat(DoctorPdfPeriod.default(LocalDate.of(2026, 3, 1)))
+            .isEqualTo(LocalDate.of(2026, 2, 1) to LocalDate.of(2026, 2, 28))
+        assertThat(DoctorPdfPeriod.default(LocalDate.of(2026, 1, 20)))
+            .isEqualTo(LocalDate.of(2025, 12, 1) to LocalDate.of(2025, 12, 31))
+
+        val today = LocalDate.of(2026, 10, 11)
+        assertThat(DoctorPdfPeriod.error(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), today)).isNull()
+        assertThat(DoctorPdfPeriod.error(today, today, today)).isNull()
+        assertThat(DoctorPdfPeriod.error(LocalDate.of(2026, 9, 30), LocalDate.of(2026, 9, 1), today))
+            .isEqualTo("Конец периода раньше начала")
+        assertThat(DoctorPdfPeriod.error(today.plusDays(1), today.plusDays(2), today)).isEqualTo("Период ещё не наступил")
+        // 366 дней — можно, 367 — нет (как на сервере)
+        assertThat(DoctorPdfPeriod.error(LocalDate.of(2025, 10, 11), today, today)).isNull()
+        assertThat(DoctorPdfPeriod.error(LocalDate.of(2025, 10, 10), today, today)).isEqualTo("Период — не больше 366 дней")
+    }
+
+    @Test
+    fun `имя файла PDF — имя профиля и период`() {
+        val first = LocalDate.of(2026, 9, 1)
+        val last = LocalDate.of(2026, 9, 30)
+        assertThat(DoctorPdfPeriod.fileName("Дочь", first, last)).isEqualTo("Дочь_2026-09-01_2026-09-30.pdf")
+        assertThat(DoctorPdfPeriod.fileName(" Маша / Петрова ", first, last)).isEqualTo("Маша_Петрова_2026-09-01_2026-09-30.pdf")
+        assertThat(DoctorPdfPeriod.fileName("  ", first, last)).isEqualTo("профиль_2026-09-01_2026-09-30.pdf")
     }
 }

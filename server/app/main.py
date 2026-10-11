@@ -1,5 +1,5 @@
 """API сервера «Еда и здоровье» (ТЗ 9, 17): /health, /sync, /photos, /reports/day, /reports/week, /reports/month,
-/reports/analysis.
+/reports/analysis, /reports/doctor (PDF).
 
 Каждый запрос — с заголовком X-Family-Key, без него 401.
 """
@@ -10,15 +10,16 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
 from . import analysis, config
 from .daydata import TABLES as REPORT_TABLES
 from .daydata import Family
 from .db import TABLES, Store
+from .nutrition import num
 from . import report_settings
-from .reports import daily, period
+from .reports import daily, doctor, period
 
 PAGE_SIZE = 1000
 MAX_CHANGES = 5000
@@ -127,5 +128,23 @@ def create_app(settings: config.Settings | None = None) -> FastAPI:
         """Последний ночной анализ Claude (ТЗ 17.9) в виде отчёта; прошлые не хранятся. Дата в запросе не нужна."""
         return (analysis.report_for(analysis.analysis_dir(settings.data_dir), profile_id)
                 or analysis.empty_report(profile_id))
+
+    @app.get("/reports/doctor")
+    def report_doctor(profile_id: str, first: date, last: date) -> Response:
+        """PDF для врача (ТЗ 17.11) за дни с [first] по [last] включительно — только профиль с «Дневником СД1»."""
+        if last < first:
+            raise HTTPException(status_code=400, detail="Конец периода раньше начала")
+        if (last - first).days + 1 > doctor.MAX_DAYS:
+            raise HTTPException(status_code=400, detail=f"Период — не больше {doctor.MAX_DAYS} дней")
+        family = Family(store.records(REPORT_TABLES))
+        profile = family.profiles.get(profile_id)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="Профиль не найден")
+        if not num(profile.get("sd1_enabled")):
+            raise HTTPException(status_code=400, detail="PDF для врача — только для профиля с «Дневником СД1»")
+        pdf = doctor.build(family, profile, first, last, report_settings.load(settings.reports_config))
+        return Response(pdf, media_type="application/pdf", headers={
+            "Content-Disposition": f'attachment; filename="doctor-{first.isoformat()}-{last.isoformat()}.pdf"',
+        })
 
     return app

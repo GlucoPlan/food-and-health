@@ -15,6 +15,12 @@ sealed interface ReportResult {
     data class Failed(val message: String) : ReportResult
 }
 
+sealed interface PdfResult {
+    class Ok(val pdf: ByteArray, val syncWarning: String? = null) : PdfResult
+    data object NotConfigured : PdfResult
+    data class Failed(val message: String) : PdfResult
+}
+
 @Singleton
 class ReportRepository @Inject constructor(
     private val backend: ReportBackend,
@@ -33,6 +39,22 @@ class ReportRepository @Inject constructor(
         } catch (e: SyncException) {
             ReportResult.Failed(
                 if (e is SyncException.Network) "Отчёты доступны только при связи с сервером" else e.message ?: "Ошибка"
+            )
+        }
+    }
+
+    /**
+     * PDF для врача (ТЗ 17.11). Сначала синхронизация, как у «Сформировать сейчас»: в PDF попадут и записи,
+     * сделанные на этом телефоне. Если она не удалась, PDF всё равно запрашивается.
+     */
+    suspend fun doctorPdf(profileId: String, first: LocalDate, last: LocalDate): PdfResult {
+        val config = settings.currentConfig() ?: return PdfResult.NotConfigured
+        val warning = (engine.sync() as? SyncResult.Failed)?.message
+        return try {
+            PdfResult.Ok(backend.doctorPdf(config, profileId, first, last), warning)
+        } catch (e: SyncException) {
+            PdfResult.Failed(
+                if (e is SyncException.Network) "PDF доступен только при связи с сервером" else e.message ?: "Ошибка"
             )
         }
     }

@@ -3,4 +3,6 @@
     <cache-path name="updates" path="updates/" />
     <!-- Снимок камеры для фото кастрюли -->
     <cache-path name="camera" path="camera/" />
+    <!-- PDF для врача — в «Поделиться» -->
+    <cache-path name="pdf" path="pdf/" />
 </paths>
